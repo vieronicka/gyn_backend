@@ -16,13 +16,16 @@ const db =mysql.createConnection({
 
 app.post('/reg', (req, res) => {
     // Insert data into the 'patient' table
-    const patientSql = "INSERT INTO patient (`phn`,`full_name`,`address`,`nic`,`phone_no`) VALUES (?)";
+    const patientSql = "INSERT INTO patient (`phn`,`full_name`,`address`,`nic`,`phone_no`,`dob`,`marrital_status`,`blood_gr`) VALUES (?)";
     const patientValues = [
         req.body.phn,
         req.body.fname,
         req.body.address,
         req.body.nic,
-        req.body.tp
+        req.body.tp,
+        req.body.dob,
+        req.body.status,
+        req.body.bloodgr
     ];
 
     db.query(patientSql, [patientValues], (patientErr, patientResult) => {
@@ -31,7 +34,7 @@ app.post('/reg', (req, res) => {
         }
 
         // Insert data into the 'admission' table
-        const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`past_obs`,`past_med`,`past_surg`,`hist_cancer`) VALUES (?)";
+        const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`past_obs`,`past_med`,`past_surg`,`diagnosis`,`hist_cancer`) VALUES (?)";
         const admissionValues = [
             req.body.date,
             req.body.phn,
@@ -41,6 +44,7 @@ app.post('/reg', (req, res) => {
             req.body.past_obs,
             req.body.past_med,
             req.body.past_surg,
+            req.body.diagnosis,
             req.body.past_hist
         ];
 
