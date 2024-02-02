@@ -58,6 +58,49 @@ app.post('/reg', (req, res) => {
     });
 });
 
+app.post('/staff_reg', (req, res) => {
+    // Insert data into the 'patient' table
+    const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
+    const staffValues = [
+        req.body.name,
+        req.body.phone_no,
+        req.body.role,
+        req.body.email,
+        req.body.password,
+        req.body.status
+    ];
+
+    db.query(staffSql, [staffValues], (staffErr, staffResult) => {
+        if (staffErr) {
+            return res.json({ error: "Error inserting data into 'staff' table", details: staffErr });
+        }
+
+        return res.json({ staffResult });
+    });
+});
+
+app.post('/login',(req,res) =>{
+    const sql = "SELECT * from staff WHERE `email`=? AND `password` =?";
+    db.query(sql,[req.body.email,req.body.password],(err,data)=>{
+        if(err){
+            return res.json("Error");
+        }
+        if(data.length>0){
+            req.session.user = {
+                userId: req.body.email,
+                username: req.body.password,
+              };
+            return res.json("Success");
+        }else{
+            return res.json("Failed");
+        }
+    })
+})
+app.get('/logout',(req,res)=>{
+    req.session.user = null;
+    req.session.destroy();
+    return res.json("success")
+})
 app.listen(8081,() =>{
     console.log("Running...");
 })
