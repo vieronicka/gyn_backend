@@ -82,14 +82,11 @@ app.post('/staff_reg', (req, res) => {
 app.post('/login',(req,res) =>{
     const sql = "SELECT * from staff WHERE `email`=? AND `password` =?";
     db.query(sql,[req.body.email,req.body.password],(err,data)=>{
+        //console.log(data);
         if(err){
             return res.json("Error");
         }
         if(data.length>0){
-            // req.session.user = {
-            //     userId: req.body.email,
-            //     username: req.body.password,
-            //   };
             return res.json("Success");
         }else{
             return res.json("Failed");
@@ -97,9 +94,10 @@ app.post('/login',(req,res) =>{
     })
 })
 app.get('/logout',(req,res)=>{
-    req.session.user = null;
-    req.session.destroy();
-    return res.json("success")
+    navigate('/');
+    // req.session.user = null;
+    // req.session.destroy();
+    // return res.json("success")
 })
 app.listen(8081,() =>{
     console.log("Running...");
