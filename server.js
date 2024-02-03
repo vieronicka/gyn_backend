@@ -86,10 +86,10 @@ app.post('/login',(req,res) =>{
             return res.json("Error");
         }
         if(data.length>0){
-            req.session.user = {
-                userId: req.body.email,
-                username: req.body.password,
-              };
+            // req.session.user = {
+            //     userId: req.body.email,
+            //     username: req.body.password,
+            //   };
             return res.json("Success");
         }else{
             return res.json("Failed");
