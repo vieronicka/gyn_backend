@@ -97,6 +97,16 @@ app.post('/login',(req,res) =>{
         }
     })
 })
+app.get('/data', (req, res) => {
+    db.query('SELECT id,full_name,blood_gr,phone_no FROM patient', (err, results) => {
+      if (err) {
+        res.status(500).send('Error retrieving data from database');
+      } else {
+        res.json(results);
+      }
+      
+    });
+  });
 app.get('/logout',(req,res)=>{
     navigate('/');
     // req.session.user = null;
