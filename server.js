@@ -8,6 +8,8 @@ import session from "express-session";
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+const port = 8081;
 
 app.use(cookieParser());
 app.use(session({
@@ -16,7 +18,7 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        expires: 60 * 60 * 24,
+        maxAge: 1000 * 60 * 60 * 2
     }
 }));
 const db =mysql.createConnection({
@@ -95,11 +97,11 @@ app.post('/login',(req,res) =>{
             return res.json("Error");
         }
         if(data.length>0){
-            req.session.user = {
-                userId: req.body.email,
-                username: req.body.password,
-            };
-            console.log(req.session.user);
+            
+                req.session.userId = req.body.email,
+                req.session.username=req.body.password;
+            
+            //console.log(req.session.userId);
             return res.json("Success");
         }else{
             return res.json("Failed");
@@ -107,12 +109,13 @@ app.post('/login',(req,res) =>{
     })
 })
 const isAuthenticated = (req, res, next) => {
-    if (req.session && req.session.user) {
+    if (req.session.isAuthenticated) {
       // User is authenticated
       next();
     } else {
       // Redirect to login page or send an unauthorized response
-      res.status(401).send('Unauthorized');
+      res.statusCode(500);
+      res.send();
     }
   };
 
@@ -121,21 +124,29 @@ const isAuthenticated = (req, res, next) => {
     res.send('/home');
   });
 
-
-app.get('/logout',(req,res)=>{
-    // console.log(req.session.user);
-    req.session.user = null;
-    req.session.destroy();
-    return res.json("success")
-})
-// app.get('/logout', (req, res) => {
-//     req.session.destroy((err) => {
-//       if (err) {
-//         console.error(err);
-//       }
-//       res.redirect('/login'); // Redirect to login page after logout
-//     });
-//   });
+  app.get('/data', (req, res) => {
+    db.query('SELECT id,full_name,blood_gr,phone_no FROM patient', (err, results) => {
+      if (err) {
+        res.status(500).send('Error retrieving data from database');
+      } else {
+        res.json(results);
+      }
+      
+    });
+  });
+// app.get('/logout',(req,res)=>{
+//     req.session.user = null;
+//     req.session.destroy();
+//     return res.json("success")
+// })
+app.post('/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error(err);
+      }
+      res.redirect('/'); // Redirect to login page after logout
+    });
+  });
   
 app.listen(8081,() =>{
     console.log("Running...");
