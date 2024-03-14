@@ -97,16 +97,29 @@ app.post('/login',(req,res) =>{
         }
     })
 })
-app.get('/data', (req, res) => {
-    db.query('SELECT id,full_name,blood_gr,phone_no FROM patient', (err, results) => {
-      if (err) {
-        res.status(500).send('Error retrieving data from database');
-      } else {
-        res.json(results);
-      }
-      
+
+app.get('/details', (req, res) => {
+    db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(results);
+        }
     });
-  });
+});
+
+app.get('/data', (req, res) => {
+    const limit = req.query.limit || 20; // Default limit to 10 if not specified in the query string
+    db.query('SELECT id, full_name, phn, phone_no FROM patient LIMIT ?', [limit], (err, results) => {
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(results);
+        }
+    });
+});
+
+  
 app.get('/logout',(req,res)=>{
     navigate('/');
     // req.session.user = null;
