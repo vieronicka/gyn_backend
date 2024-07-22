@@ -200,6 +200,16 @@ app.put('/discharge/:phn', (req, res) => {
     });
 });
 
+app.get('/data1', (req, res) => {
+    const limit = req.query.limit || 20; // Default limit to 10 if not specified in the query string
+    db.query('SELECT * FROM staff LIMIT ?', [limit], (err, results) => {
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(results);
+        }
+    });
+});
 
 
 
