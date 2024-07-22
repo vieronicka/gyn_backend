@@ -1,11 +1,26 @@
 import express from 'express';
 import mysql from 'mysql';
 import cors from 'cors';
+import cookieParser from "cookie-parser";
+import session from "express-session";
+
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+const port = 8081;
 
+app.use(cookieParser());
+app.use(session({
+    key: "userId",
+    secret:'hellooooooo',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 1000 * 60 * 60 * 2
+    }
+}));
 const db =mysql.createConnection({
     host:"localhost",
     user:"root",
@@ -15,16 +30,13 @@ const db =mysql.createConnection({
 
 app.post('/reg', (req, res) => {
     // Insert data into the 'patient' table
-    const patientSql = "INSERT INTO patient (`phn`,`full_name`,`address`,`nic`,`phone_no`,`dob`,`marrital_status`,`blood_gr`) VALUES (?)";
+    const patientSql = "INSERT INTO patient (`phn`,`full_name`,`address`,`nic`,`phone_no`) VALUES (?)";
     const patientValues = [
         req.body.phn,
         req.body.fname,
         req.body.address,
         req.body.nic,
-        req.body.tp,
-        req.body.dob,
-        req.body.status,
-        req.body.bloodgr
+        req.body.tp
     ];
 
     db.query(patientSql, [patientValues], (patientErr, patientResult) => {
@@ -89,11 +101,14 @@ app.post('/staff_reg', (req, res) => {
 app.post('/login',(req,res) =>{
     const sql = "SELECT * from staff WHERE `email`=? AND `password` =?";
     db.query(sql,[req.body.email,req.body.password],(err,data)=>{
-        //console.log(data);
         if(err){
             return res.json("Error");
         }
         if(data.length>0){
+            req.session.user = {
+                userId: req.body.email,
+                username: req.body.password,
+              };
             return res.json("Success");
         }else{
             return res.json("Failed");
@@ -251,9 +266,6 @@ app.get('/data1', (req, res) => {
         }
     });
 });
-
-
-
   
 app.get('/logout',(req,res)=>{
     //navigate('/');
