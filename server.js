@@ -267,6 +267,18 @@ app.get('/data1', (req, res) => {
     });
 });
   
+app.delete('/staff_information/:id', (req, res) => {
+    const sql = 'DELETE FROM staff WHERE id = ?';
+    const id =req.params.id;
+    db.query(sql, [id], (err, result) => {
+      if (err) {
+        console.error('Error deleting row:', err);
+        return res.status(500).send('Error deleting row');
+      }
+      res.send('Row deleted successfully');
+    });
+  });
+
 app.get('/logout',(req,res)=>{
     //navigate('/');
     // req.session.user = null;
