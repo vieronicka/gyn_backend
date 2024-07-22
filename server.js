@@ -188,6 +188,47 @@ app.get('/view/:id',(req,res) =>{
     })
 })
 
+app.get('/about/:id',(req,res) =>{
+    const sql ="SELECT * , FLOOR(DATEDIFF(CURRENT_DATE(), dob) / 365) AS age FROM  patient WHERE id = ?";
+    const id=req.params.id;
+    db.query(sql,[id],(err,result) =>{
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+       
+    })
+})
+
+app.get('/patientda/:id',(req,res) =>{
+    const sql ="SELECT * , FLOOR(DATEDIFF(CURRENT_DATE(), dob) / 365) AS age FROM  patient WHERE id = ?";
+    const id=req.params.id;
+    db.query(sql,[id],(err,result) =>{
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+       
+    })
+})
+
+app.get('/admisiondetail/:id',(req,res) =>{
+    //const sql ="SELECT * , FLOOR(DATEDIFF(CURRENT_DATE(), dob) / 365) AS age FROM  patient WHERE id = ?";
+    const sql ="select * from admission where phn = ?"
+    const id =req.params.id;
+    db.query(sql,[id],(err,result) =>{
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+       
+    })
+})
+
+
 app.put('/discharge/:phn', (req, res) => {
     const sql = 'UPDATE admission SET status = "discharged" WHERE phn = ?';
     const phn = req.params.phn;
