@@ -3,6 +3,9 @@ import mysql from 'mysql';
 import cors from 'cors';
 import cookieParser from "cookie-parser";
 import session from "express-session";
+import bcrypt from "bcryptjs";
+
+
 
 
 const app = express();
@@ -77,7 +80,10 @@ app.post('/reg', (req, res) => {
 });
 
 
-app.post('/staff_reg', (req, res) => {
+app.post('/staff_reg', async (req, res) => {
+    const { full_name, phone_no, role, email, password, status } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    req.body.password = hashedPassword;
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
         req.body.full_name,
@@ -87,7 +93,7 @@ app.post('/staff_reg', (req, res) => {
         req.body.password,
         req.body.status
     ];
-
+    console.log(staffValues);
     db.query(staffSql, [staffValues], (staffErr, staffResult) => {
         if (staffErr) {
             return res.json({ error: "Error inserting data into 'staff' table", details: staffErr });
@@ -97,23 +103,45 @@ app.post('/staff_reg', (req, res) => {
     });
 });
 
-app.post('/login',(req,res) =>{
-    const sql = "SELECT * from staff WHERE `email`=? AND `password` =?";
-    db.query(sql,[req.body.email,req.body.password],(err,data)=>{
-        if(err){
-            return res.json("Error");
+app.post('/login',  (req, res) => {
+    const { email, password } = req.body;
+  
+    const sql = "SELECT * FROM staff WHERE email = ?";
+    db.query(sql, [email],  (err, results) => {
+      if (err) {
+        return res.status(500).send('Server error');
+      }
+      if (results.length === 0) {
+        return res.status(400).send('User not found');
+      }
+  
+      const user = results[0];
+      const isMatch =  bcrypt.compareSync(password, user.password);
+      if (!isMatch) {
+        return res.status(400).send('Invalid credentials');
+      }else{
+        return res.json("Success");
+    }  
+    });
+  });
+
+  app.put('/staff_update/:id', async (req, res) => {
+    const id = req.params.id;
+    const { full_name, phone_no, role, email, password, status } = req.body; 
+    const hashedPassword = await bcrypt.hash(password, 10);
+    req.body.password = hashedPassword;
+   
+    
+    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
+    db.query(sql, [full_name, phone_no, role, email, hashedPassword, status, id], (err, result) => {
+      if (err) {
+        console.error('Error updating row:', err);
+        return res.status(500).send('Error updating row');
         }
-        if(data.length>0){
-            req.session.user = {
-                userId: req.body.email,
-                username: req.body.password,
-              };
-            return res.json("Success");
-        }else{
-            return res.json("Failed");
-        }
-    })
-})
+        res.send('Row updated successfully');        
+    });
+  });
+
 
 app.get('/details', (req, res) => {
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
