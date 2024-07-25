@@ -78,10 +78,9 @@ app.post('/reg', (req, res) => {
 
 
 app.post('/staff_reg', (req, res) => {
-    // Insert data into the 'patient' table
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
-        req.body.name,
+        req.body.full_name,
         req.body.phone_no,
         req.body.role,
         req.body.email,
