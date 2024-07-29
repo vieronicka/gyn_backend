@@ -90,18 +90,20 @@ app.post('/reg', (req, res) => {
 
 
 
-app.post('/staff_reg', (req, res) => {
-    // Insert data into the 'patient' table
+app.post('/staff_reg', async (req, res) => {
+    const { full_name, phone_no, role, email, password, status } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    req.body.password = hashedPassword;
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
-        req.body.name,
+        req.body.full_name,
         req.body.phone_no,
         req.body.role,
         req.body.email,
         req.body.password,
         req.body.status
     ];
-
+    console.log(staffValues);
     db.query(staffSql, [staffValues], (staffErr, staffResult) => {
         if (staffErr) {
             return res.json({ error: "Error inserting data into 'staff' table", details: staffErr });
@@ -111,23 +113,27 @@ app.post('/staff_reg', (req, res) => {
     });
 });
 
-app.post('/login',(req,res) =>{
-    const sql = "SELECT * from staff WHERE `email`=? AND `password` =?";
-    db.query(sql,[req.body.email,req.body.password],(err,data)=>{
-        if(err){
-            return res.json("Error");
-        }
-        if(data.length>0){
-            req.session.user = {
-                userId: req.body.email,
-                username: req.body.password,
-              };
-            return res.json("Success");
-        }else{
-            return res.json("Failed");
-        }
-    })
-})
+app.post('/login',  (req, res) => {
+    const { email, password } = req.body;
+  
+    const sql = "SELECT * FROM staff WHERE email = ?";
+    db.query(sql, [email],  (err, results) => {
+      if (err) {
+        return res.status(500).send('Server error');
+      }
+      if (results.length === 0) {
+        return res.status(400).send('User not found');
+      }
+  
+      const user = results[0];
+      const isMatch =  bcrypt.compareSync(password, user.password);
+      if (!isMatch) {
+        return res.status(400).send('Invalid credentials');
+      }else{
+        return res.json("Success");
+    }  
+    });
+  });
 
 app.get('/details', (req, res) => {
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
