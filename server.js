@@ -134,7 +134,22 @@ app.post('/login',  (req, res) => {
     }  
     });
   });
-
+  app.put('/staff_update/:id', async (req, res) => {
+    const id = req.params.id;
+    const { full_name, phone_no, role, email, password, status } = req.body; 
+    const hashedPassword = await bcrypt.hash(password, 10);
+    req.body.password = hashedPassword;
+   
+    
+    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
+    db.query(sql, [full_name, phone_no, role, email, hashedPassword, status, id], (err, result) => {
+      if (err) {
+        console.error('Error updating row:', err);
+        return res.status(500).send('Error updating row');
+        }
+        res.send('Row updated successfully');        
+    });
+  });
 app.get('/details', (req, res) => {
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
         if (err) {
