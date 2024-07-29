@@ -30,12 +30,15 @@ const db =mysql.createConnection({
 
 app.post('/reg', (req, res) => {
     // Insert data into the 'patient' table
-    const patientSql = "INSERT INTO patient (`phn`,`full_name`,`address`,`nic`,`phone_no`) VALUES (?)";
+    const patientSql = "INSERT INTO patient (`phn`,`full_name`,`address`,`nic`,`dob`,`marrital_status`,`phone_no`,`blood_gr`) VALUES (?)";
     const patientValues = [
         req.body.phn,
         req.body.fname,
         req.body.address,
         req.body.nic,
+        req.body.dob,
+        req.body.status,
+        req.body.bloodgr,
         req.body.tp
     ];
 
@@ -46,23 +49,32 @@ app.post('/reg', (req, res) => {
         }
 
         // Insert data into the 'admission' table
-        const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`past_obs`,`past_med`,`past_surg`,`diagnosis`,`hist_cancer`,`allergy`,`complaints`,`height`,`weight`,`other`) VALUES (?)";
+        const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
         const admissionValues = [
             req.body.date,
             req.body.phn,
             req.body.bht,
             req.body.ward,
             req.body.consultant,
-            req.body.past_obs,
-            req.body.past_med,
-            req.body.past_surg,
-            req.body.diagnosis,
-            req.body.past_hist,
             req.body.allergy,
-            req.body.complaint,
+            // req.body.past_obs,
+            req.body.past_med.join(','),
+            req.body.past_med_other,
+            req.body.past_surg.join(','),
+            req.body.past_surg_other,
+            req.body.hx_diseases,
+            req.body.hx_cancer.join(','),
+            req.body.hx_cancer_other,
+            req.body.diagnosis, 
             req.body.height,
             req.body.weight,
-            req.body.other
+            // req.body.past_hist,
+            // req.body.complaint,
+            req.body.menarche_age,
+            req.body.menopausal_age,
+            req.body.lmp,
+            req.body.menstrual_cycle          
+            // req.body.other
         ];
 
         db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
@@ -75,6 +87,7 @@ app.post('/reg', (req, res) => {
         });
     });
 });
+
 
 
 app.post('/staff_reg', (req, res) => {
