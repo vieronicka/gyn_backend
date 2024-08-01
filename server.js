@@ -163,7 +163,7 @@ app.get('/details', (req, res) => {
 });
 
 app.get('/data', (req, res) => {
-    const limit = parseInt(req.query.limit) || 8;
+    const limit = parseInt(req.query.limit) || 6;
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
     
