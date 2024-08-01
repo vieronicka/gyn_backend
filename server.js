@@ -3,13 +3,17 @@ import mysql from 'mysql';
 import cors from 'cors';
 import cookieParser from "cookie-parser";
 import session from "express-session";
+import bcrypt from "bcryptjs";
+import keys from './Config/keys.js';
+import jwt from 'jsonwebtoken';
+
 
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-const port = 8081;
+const port = process.env.PORT || 8081;
 
 app.use(cookieParser());
 app.use(session({
@@ -89,7 +93,6 @@ app.post('/reg', (req, res) => {
 });
 
 
-
 app.post('/staff_reg', async (req, res) => {
     const { full_name, phone_no, role, email, password, status } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -97,12 +100,14 @@ app.post('/staff_reg', async (req, res) => {
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
         req.body.full_name,
+        req.body.full_name,
         req.body.phone_no,
         req.body.role,
         req.body.email,
         req.body.password,
         req.body.status
     ];
+    console.log(staffValues);
     console.log(staffValues);
     db.query(staffSql, [staffValues], (staffErr, staffResult) => {
         if (staffErr) {
@@ -115,7 +120,6 @@ app.post('/staff_reg', async (req, res) => {
 
 app.post('/login',  (req, res) => {
     const { email, password } = req.body;
-  
     const sql = "SELECT * FROM staff WHERE email = ?";
     db.query(sql, [email],  (err, results) => {
       if (err) {
@@ -130,10 +134,18 @@ app.post('/login',  (req, res) => {
       if (!isMatch) {
         return res.status(400).send('Invalid credentials');
       }else{
-        return res.json("Success");
+        const payload = { id: user.id, full_name: user.full_name };
+        jwt.sign(payload, keys.secretOrKey, { expiresIn: 3600 }, (err, token) => {
+          res.json({
+            success: true,
+            token: 'Bearer ' + token,
+          });
+        });
     }  
     });
   });
+
+
   app.put('/staff_update/:id', async (req, res) => {
     const id = req.params.id;
     const { full_name, phone_no, role, email, password, status } = req.body; 
@@ -150,6 +162,8 @@ app.post('/login',  (req, res) => {
         res.send('Row updated successfully');        
     });
   });
+
+
 app.get('/details', (req, res) => {
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
         if (err) {
@@ -300,6 +314,7 @@ app.get('/data1', (req, res) => {
         }
     });
 });
+  
 app.delete('/staff_information/:id', (req, res) => {
     const sql = 'DELETE FROM staff WHERE id = ?';
     const id =req.params.id;
@@ -311,7 +326,7 @@ app.delete('/staff_information/:id', (req, res) => {
       res.send('Row deleted successfully');
     });
   });
-  
+
 app.get('/logout',(req,res)=>{
     //navigate('/');
     // req.session.user = null;
