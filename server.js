@@ -227,8 +227,8 @@ app.post('/searchdata', (req, res) => {
     if (conditions.length > 0) {
         sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
         params.push(parseInt(limit)); // Adding limit to params
-        console.log('SQL Query:', sqlQuery);
-        console.log('Params:', params);
+        //console.log('SQL Query:', sqlQuery);
+        //console.log('Params:', params);
         db.query(sqlQuery, params, (err, results) => {
             if (err) {
                 res.status(500).send('Error retrieving data from database');
