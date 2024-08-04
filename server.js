@@ -3,18 +3,17 @@ import mysql from 'mysql';
 import cors from 'cors';
 import cookieParser from "cookie-parser";
 import session from "express-session";
-import bcrypt from 'bcrypt';
-
+import bcrypt from "bcryptjs";
+import keys from './Config/keys.js';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 
 app.use(cors());
 
 app.use(express.json());
-
 app.use(express.urlencoded({ extended: true }));
-
-const port = 8081;
+const port = process.env.PORT || 8081;
 
 app.use(cookieParser());
 
@@ -28,7 +27,7 @@ app.use(session({
     }
 }));
 
-const db = mysql.createConnection({
+const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
@@ -95,15 +94,13 @@ app.post('/reg', (req, res) => {
     });
 });
 
-
-
 app.post('/staff_reg', async (req, res) => {
     const { full_name, phone_no, role, email, password, status } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
     req.body.password = hashedPassword;
-    console.log(hashedPassword);
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
+        req.body.full_name,
         req.body.full_name,
         req.body.phone_no,
         req.body.role,
@@ -111,7 +108,7 @@ app.post('/staff_reg', async (req, res) => {
         req.body.password,
         req.body.status
     ];
-    // console.log(staffValues);
+
     db.query(staffSql, [staffValues], (staffErr, staffResult) => {
         if (staffErr) {
             return res.json({ error: "Error inserting data into 'staff' table", details: staffErr });
@@ -123,7 +120,6 @@ app.post('/staff_reg', async (req, res) => {
 
 app.post('/login',  (req, res) => {
     const { email, password } = req.body;
-  
     const sql = "SELECT * FROM staff WHERE email = ?";
     db.query(sql, [email],  (err, results) => {
       if (err) {
@@ -138,10 +134,17 @@ app.post('/login',  (req, res) => {
       if (!isMatch) {
         return res.status(400).send('Invalid credentials');
       }else{
-        return res.json("Success");
+        const payload = { id: user.id, full_name: user.full_name };
+        jwt.sign(payload, keys.secretOrKey, { expiresIn: 3600 }, (err, token) => {
+          res.json({
+            success: true,
+            token: 'Bearer ' + token,
+          });
+        });
     }  
     });
   });
+
   app.put('/staff_update/:id', async (req, res) => {
     const id = req.params.id;
     const { full_name, phone_no, role, email, password, status } = req.body; 
@@ -205,38 +208,6 @@ app.get('/dischargedata', (req, res) => {
     });
 });
 
-// app.post('/searchdata', (req, res) => {
-//     const { phn, name } = req.body;
-//     const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
-//     let sqlQuery = 'SELECT * FROM patient WHERE ';
-
-//     if (phn) {
-//         // If input is a number, search by phn
-//         sqlQuery += 'phn LIKE ?';
-//         const searchTerm = `%${phn}%`; // Prepare search term for SQL LIKE clause
-//         db.query(sqlQuery, [searchTerm], (err, results) => {
-//             if (err) {
-//                 res.status(500).send('Error retrieving data from database');
-//             } else {
-//                 res.json(results);
-//             }
-//         });
-//     } else if (name) {
-//         // If input is alphabets, search by name
-//         sqlQuery += 'full_name LIKE ?';
-//         const searchTerm = `%${name}%`; // Prepare search term for SQL LIKE clause
-//         db.query(sqlQuery, [searchTerm], (err, results) => {
-//             if (err) {
-//                 res.status(500).send('Error retrieving data from database');
-//             } else {
-//                 res.json(results);
-//             }
-//         });
-//     } else {
-//         res.status(400).send('Invalid search input');
-//     }
-// });
-
 app.get('/view/:id',(req,res) =>{
     const sql ="SELECT * , FLOOR(DATEDIFF(CURRENT_DATE(), dob) / 365) AS age FROM  patient WHERE id = ?";
     const id=req.params.id;
@@ -290,7 +261,6 @@ app.get('/admisiondetail/:id',(req,res) =>{
     })
 })
 
-
 app.put('/discharge/:phn', (req, res) => {
     const sql = 'UPDATE admission SET status = "discharged" WHERE phn = ?';
     const phn = req.params.phn;
@@ -313,6 +283,7 @@ app.get('/data1', (req, res) => {
         }
     });
 });
+
 app.delete('/staff_information/:id', (req, res) => {
     const sql = 'DELETE FROM staff WHERE id = ?';
     const id =req.params.id;
@@ -324,7 +295,6 @@ app.delete('/staff_information/:id', (req, res) => {
       res.send('Row deleted successfully');
     });
   });
-  
 
   app.post('/searchdata', (req, res) => {
     const { val } = req.body;
@@ -362,7 +332,6 @@ app.delete('/staff_information/:id', (req, res) => {
         res.status(400).send('Invalid search input');
     }
 });
-
 
 app.get('/logout',(req,res)=>{
     //navigate('/');
