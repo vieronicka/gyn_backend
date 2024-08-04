@@ -207,26 +207,29 @@ app.get('/dischargedata', (req, res) => {
     });
 });
 app.post('/searchdata', (req, res) => {
-    const { phn, name } = req.body;
+    const { val } = req.body;
     const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
     let sqlQuery = 'SELECT * FROM patient WHERE ';
+    let conditions = [];
+    let params = [];
 
-    if (phn) {
-        // If input is a number, search by phn
-        sqlQuery += 'phn LIKE ?';
-        const searchTerm = `%${phn}%`; // Prepare search term for SQL LIKE clause
-        db.query(sqlQuery, [searchTerm], (err, results) => {
-            if (err) {
-                res.status(500).send('Error retrieving data from database');
-            } else {
-                res.json(results);
-            }
-        });
-    } else if (name) {
-        // If input is alphabets, search by name
-        sqlQuery += 'full_name LIKE ?';
-        const searchTerm = `%${name}%`; // Prepare search term for SQL LIKE clause
-        db.query(sqlQuery, [searchTerm], (err, results) => {
+    // Check if the input is a number
+    if (!isNaN(val)) {
+        // If val is a number, search by phone number or NIC
+        conditions.push('phn LIKE ? OR nic LIKE ?');
+        params.push(`%${val}%`, `%${val}%`);
+    } else {
+        // If val is a string, search by name
+        conditions.push('full_name LIKE ?');
+        params.push(`%${val}%`);
+    }
+
+    if (conditions.length > 0) {
+        sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
+        params.push(parseInt(limit)); // Adding limit to params
+        //console.log('SQL Query:', sqlQuery);
+        //console.log('Params:', params);
+        db.query(sqlQuery, params, (err, results) => {
             if (err) {
                 res.status(500).send('Error retrieving data from database');
             } else {
@@ -237,6 +240,74 @@ app.post('/searchdata', (req, res) => {
         res.status(400).send('Invalid search input');
     }
 });
+
+// app.post('/searchdata', (req, res) => {
+//     const { val } = req.body;
+//     const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
+//     let sqlQuery = 'SELECT * FROM patient WHERE ';
+//     let conditions = [];
+//     let params = [];
+
+//     // Check if the input is a number or a string
+//     if (!isNaN(val)) {
+//         // If val is a number, search by phone number
+//         conditions.push('phn LIKE ?');
+//         params.push(`%${val}%`);
+//     } else {
+//         // If val is a string, search by name
+//         conditions.push('full_name LIKE ?');
+//         params.push(`%${val}%`);
+//     }
+
+//     if (conditions.length > 0) {
+//         sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
+//         params.push(parseInt(limit)); // Adding limit to params
+//         //console.log('SQL Query:', sqlQuery);
+//         //console.log('Params:', params);
+//         db.query(sqlQuery, params, (err, results) => {
+//             if (err) {
+//                 res.status(500).send('Error retrieving data from database');
+//             } else {
+//                 res.json(results);
+//             }
+//         });
+//     } else {
+//         res.status(400).send('Invalid search input');
+//     }
+// });
+
+
+// app.post('/searchdata', (req, res) => {
+//     const { phn, name } = req.body;
+//     const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
+//     let sqlQuery = 'SELECT * FROM patient WHERE ';
+//     let conditions = [];
+//     let params = [];
+
+//     if (phn) {
+//         conditions.push('phn LIKE ?');
+//         params.push(`%${phn}%`);
+//     }
+
+//     if (name) {
+//         conditions.push('full_name LIKE ?');
+//         params.push(`%${name}%`);
+//     }
+
+//     if (conditions.length > 0) {
+//         sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
+//         params.push(parseInt(limit)); // Adding limit to params
+//         db.query(sqlQuery, params, (err, results) => {
+//             if (err) {
+//                 res.status(500).send('Error retrieving data from database');
+//             } else {
+//                 res.json(results);
+//             }
+//         });
+//     } else {
+//         res.status(400).send('Invalid search input');
+//     }
+// });
 
 app.get('/view/:id',(req,res) =>{
     const sql ="SELECT * , FLOOR(DATEDIFF(CURRENT_DATE(), dob) / 365) AS age FROM  patient WHERE id = ?";
