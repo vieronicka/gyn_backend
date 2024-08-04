@@ -31,7 +31,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gynn"
+    database:"gyn"
 })
 
 app.post('/reg', (req, res) => {
@@ -64,12 +64,12 @@ app.post('/reg', (req, res) => {
             req.body.consultant,
             req.body.allergy,
             // req.body.past_obs,
-            req.body.past_med.join(','),
+            req.body.past_med.join(', '),
             req.body.past_med_other,
-            req.body.past_surg.join(','),
+            req.body.past_surg.join(', '),
             req.body.past_surg_other,
             req.body.hx_diseases,
-            req.body.hx_cancer.join(','),
+            req.body.hx_cancer.join(', '),
             req.body.hx_cancer_other,
             req.body.diagnosis, 
             req.body.height,
