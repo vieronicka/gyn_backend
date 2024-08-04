@@ -3,15 +3,20 @@ import mysql from 'mysql';
 import cors from 'cors';
 import cookieParser from "cookie-parser";
 import session from "express-session";
-
+import bcrypt from "bcryptjs";
+import keys from './Config/keys.js';
+import jwt from 'jsonwebtoken';
 
 const app = express();
+
 app.use(cors());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-const port = 8081;
+const port = process.env.PORT || 8081;
 
 app.use(cookieParser());
+
 app.use(session({
     key: "userId",
     secret:'hellooooooo',
@@ -21,11 +26,12 @@ app.use(session({
         maxAge: 1000 * 60 * 60 * 2
     }
 }));
+
 const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gynn"
+    database:"gyn"
 })
 
 app.post('/reg', (req, res) => {
@@ -58,12 +64,12 @@ app.post('/reg', (req, res) => {
             req.body.consultant,
             req.body.allergy,
             // req.body.past_obs,
-            req.body.past_med.join(','),
+            req.body.past_med.join(', '),
             req.body.past_med_other,
-            req.body.past_surg.join(','),
+            req.body.past_surg.join(', '),
             req.body.past_surg_other,
             req.body.hx_diseases,
-            req.body.hx_cancer.join(','),
+            req.body.hx_cancer.join(', '),
             req.body.hx_cancer_other,
             req.body.diagnosis, 
             req.body.height,
@@ -88,8 +94,6 @@ app.post('/reg', (req, res) => {
     });
 });
 
-
-
 app.post('/staff_reg', async (req, res) => {
     const { full_name, phone_no, role, email, password, status } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -97,13 +101,14 @@ app.post('/staff_reg', async (req, res) => {
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
         req.body.full_name,
+        req.body.full_name,
         req.body.phone_no,
         req.body.role,
         req.body.email,
         req.body.password,
         req.body.status
     ];
-    console.log(staffValues);
+
     db.query(staffSql, [staffValues], (staffErr, staffResult) => {
         if (staffErr) {
             return res.json({ error: "Error inserting data into 'staff' table", details: staffErr });
@@ -115,7 +120,6 @@ app.post('/staff_reg', async (req, res) => {
 
 app.post('/login',  (req, res) => {
     const { email, password } = req.body;
-  
     const sql = "SELECT * FROM staff WHERE email = ?";
     db.query(sql, [email],  (err, results) => {
       if (err) {
@@ -130,10 +134,17 @@ app.post('/login',  (req, res) => {
       if (!isMatch) {
         return res.status(400).send('Invalid credentials');
       }else{
-        return res.json("Success");
+        const payload = { id: user.id, full_name: user.full_name };
+        jwt.sign(payload, keys.secretOrKey, { expiresIn: 3600 }, (err, token) => {
+          res.json({
+            success: true,
+            token: 'Bearer ' + token,
+          });
+        });
     }  
     });
   });
+
   app.put('/staff_update/:id', async (req, res) => {
     const id = req.params.id;
     const { full_name, phone_no, role, email, password, status } = req.body; 
@@ -150,8 +161,9 @@ app.post('/login',  (req, res) => {
         res.send('Row updated successfully');        
     });
   });
+
 app.get('/details', (req, res) => {
-    db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
+    db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marital_status, nic,  FROM patient', (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
         } else {
@@ -161,8 +173,11 @@ app.get('/details', (req, res) => {
 });
 
 app.get('/data', (req, res) => {
-    const limit = req.query.limit || 20; // Default limit to 10 if not specified in the query string
-    db.query('SELECT * FROM patient LIMIT ?', [limit], (err, results) => {
+    const limit = parseInt(req.query.limit) || 6;
+    const page = parseInt(req.query.page) || 1;
+    const offset = (page - 1) * limit;
+    
+    db.query('SELECT * FROM patient LIMIT ? OFFSET ?', [limit, offset], (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
         } else {
@@ -172,7 +187,7 @@ app.get('/data', (req, res) => {
 });
 
 app.get('/admitdata', (req, res) => {
-    const limit = req.query.limit || 20; // Default limit to 10 if not specified in the query string
+    const limit = req.query.limit || 8; // Default limit to 10 if not specified in the query string
     db.query('SELECT * FROM patient INNER JOIN admission ON patient.phn = admission.phn WHERE admission.status = "admit" LIMIT ?', [limit], (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
@@ -183,7 +198,7 @@ app.get('/admitdata', (req, res) => {
 });
 
 app.get('/dischargedata', (req, res) => {
-    const limit = req.query.limit || 20; // Default limit to 10 if not specified in the query string
+    const limit = req.query.limit || 8; // Default limit to 10 if not specified in the query string
     db.query('SELECT * FROM patient INNER JOIN admission ON patient.phn = admission.phn WHERE admission.status = "discharged" LIMIT ?', [limit], (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
@@ -191,37 +206,6 @@ app.get('/dischargedata', (req, res) => {
             res.json(results);
         }
     });
-});
-app.post('/searchdata', (req, res) => {
-    const { phn, name } = req.body;
-    const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
-    let sqlQuery = 'SELECT * FROM patient WHERE ';
-
-    if (phn) {
-        // If input is a number, search by phn
-        sqlQuery += 'phn LIKE ?';
-        const searchTerm = `%${phn}%`; // Prepare search term for SQL LIKE clause
-        db.query(sqlQuery, [searchTerm], (err, results) => {
-            if (err) {
-                res.status(500).send('Error retrieving data from database');
-            } else {
-                res.json(results);
-            }
-        });
-    } else if (name) {
-        // If input is alphabets, search by name
-        sqlQuery += 'full_name LIKE ?';
-        const searchTerm = `%${name}%`; // Prepare search term for SQL LIKE clause
-        db.query(sqlQuery, [searchTerm], (err, results) => {
-            if (err) {
-                res.status(500).send('Error retrieving data from database');
-            } else {
-                res.json(results);
-            }
-        });
-    } else {
-        res.status(400).send('Invalid search input');
-    }
 });
 
 app.get('/view/:id',(req,res) =>{
@@ -277,7 +261,6 @@ app.get('/admisiondetail/:id',(req,res) =>{
     })
 })
 
-
 app.put('/discharge/:phn', (req, res) => {
     const sql = 'UPDATE admission SET status = "discharged" WHERE phn = ?';
     const phn = req.params.phn;
@@ -300,6 +283,7 @@ app.get('/data1', (req, res) => {
         }
     });
 });
+
 app.delete('/staff_information/:id', (req, res) => {
     const sql = 'DELETE FROM staff WHERE id = ?';
     const id =req.params.id;
@@ -311,7 +295,44 @@ app.delete('/staff_information/:id', (req, res) => {
       res.send('Row deleted successfully');
     });
   });
-  
+
+  app.post('/searchdata', (req, res) => {
+    const { val } = req.body;
+    const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
+    let sqlQuery = 'SELECT * FROM patient WHERE ';
+    let conditions = [];
+    let params = [];
+
+    // Check if the input is a number
+    if (!isNaN(val)) {
+        // If val is a number, search by phone number or NIC
+        conditions.push('phn LIKE ? OR nic LIKE ?');
+        params.push(`%${val}%`, `%${val}%`);
+        console.log(params);
+    } else {
+        // If val is a string, search by name
+        conditions.push('full_name LIKE ?');
+        params.push(`%${val}%`);
+        console.log(params);
+    }
+
+    if (conditions.length > 0) {
+        sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
+        params.push(parseInt(limit)); // Adding limit to params
+        //console.log('SQL Query:', sqlQuery);
+        //console.log('Params:', params);
+        db.query(sqlQuery, params, (err, results) => {
+            if (err) {
+                res.status(500).send('Error retrieving data from database');
+            } else {
+                res.json(results);
+            }
+        });
+    } else {
+        res.status(400).send('Invalid search input');
+    }
+});
+
 app.get('/logout',(req,res)=>{
     //navigate('/');
     // req.session.user = null;
