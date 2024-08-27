@@ -101,7 +101,6 @@ app.post('/staff_reg', async (req, res) => {
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
         req.body.full_name,
-        req.body.full_name,
         req.body.phone_no,
         req.body.role,
         req.body.email,
