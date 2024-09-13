@@ -94,8 +94,65 @@ app.post('/reg', (req, res) => {
     });
 });
 
+app.post('/newReg', (req, res) => {
+    // Insert data into the 'admission' table
+    const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`,`add_count`) VALUES (?)";
+    const admissionValues = [
+        req.body.date,
+        req.body.phn,
+        req.body.bht,
+        req.body.ward,
+        req.body.consultant,
+        req.body.allergy,
+        req.body.past_med.join(', '),
+        req.body.past_med_other,
+        req.body.past_surg.join(', '),
+        req.body.past_surg_other,
+        req.body.hx_diseases,
+        req.body.hx_cancer.join(', '),
+        req.body.hx_cancer_other,
+        req.body.diagnosis, 
+        req.body.height,
+        req.body.weight,
+        req.body.menarche_age,
+        req.body.menopausal_age,
+        req.body.lmp,
+        req.body.menstrual_cycle,
+        req.body.add_count
+        // req.body.other
+        // req.body.past_obs,
+        // req.body.past_hist,
+        // req.body.complaint,
+    ];
+
+    db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
+        if (admissionErr) {
+            console.error("Error inserting data into 'admission' table:", admissionErr);
+            return res.status(500).json({ error: "Error inserting data into 'admission' table", details: admissionErr });
+        }
+
+        return res.status(200).json({admissionResult});
+    });
+});
+
+app.get('/require_count/:id', (req, res) => {
+    // SQL query to get the phn and add_count for a specific id, ordered by add_count ascending, and limit to 1 result
+    const sql = "SELECT phn, add_count FROM admission WHERE phn = ? ORDER BY add_count DESC LIMIT 1";
+    const id = req.params.id;
+    db.query(sql, [id], (err, result) => {
+        if (err) {
+            // Log the error for debugging purposes
+            console.error('Database query error:', err);
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+    });
+});
+
+
 app.post('/staff_reg', async (req, res) => {
-    const { full_name, phone_no, role, email, password, status } = req.body;
+    //const { full_name, phone_no, role, email, password, status } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
     req.body.password = hashedPassword;
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
