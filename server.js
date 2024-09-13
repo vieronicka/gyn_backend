@@ -158,7 +158,6 @@ app.post('/staff_reg', async (req, res) => {
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
         req.body.full_name,
-        req.body.full_name,
         req.body.phone_no,
         req.body.role,
         req.body.email,
@@ -376,8 +375,8 @@ app.delete('/staff_information/:id', (req, res) => {
     if (conditions.length > 0) {
         sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
         params.push(parseInt(limit)); // Adding limit to params
-        //console.log('SQL Query:', sqlQuery);
-        //console.log('Params:', params);
+        // console.log('SQL Query:', sqlQuery);
+        // console.log('Params:', params);
         db.query(sqlQuery, params, (err, results) => {
             if (err) {
                 res.status(500).send('Error retrieving data from database');
@@ -399,3 +398,34 @@ app.get('/logout',(req,res)=>{
 app.listen(8081,() =>{
     console.log("Running...");
 })
+
+// Route to retrieve admitted and discharged patient counts
+// app.get('/api/patient-counts', (req, res) => {
+//     const query = `
+//       SELECT 
+//         SUM(CASE WHEN status = 'admit' THEN 1 ELSE 0 END) AS admittedCount,
+//         SUM(CASE WHEN status = 'discharged' THEN 1 ELSE 0 END) AS dischargedCount
+//       FROM admission;
+//     `;
+  
+//     db.query(query, (err, results) => {
+//       if (err) {
+//         console.error('Database query failed:', err);
+//         return res.status(500).json({ error: 'Database query failed' });
+//       }
+//       console.log('Query Results:', results);
+//       console.log("Inserting into admission:", {
+//         date: req.body.date,
+//         phn: req.body.phn,
+//         bht: req.body.bht,
+//         ward_no: req.body.ward,
+//         consultant: req.body.consultant,
+//         // status: req.body.status // Check this line
+//       });
+      
+//       res.json(results[0]);
+//     });
+// });
+
+
+  
