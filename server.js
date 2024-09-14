@@ -31,7 +31,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gyn"
+    database:"gynaecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -44,26 +44,39 @@ app.post('/reg', (req, res) => {
         req.body.nic,
         req.body.dob,
         req.body.status,
-        req.body.bloodgr,
-        req.body.tp
+        req.body.tp,
+        req.body.bloodgr
+        
     ];
 
     db.query(patientSql, [patientValues], (patientErr, patientResult) => {
         if (patientErr) {
-            console.error("Error inserting data into 'patient' table:", patientErr);
+            //console.error("Error inserting data into 'patient' table:", patientErr);
+            
+            // Check for unique constraint violation
+            if (patientErr.code === 'ER_DUP_ENTRY') {
+                // Error message for duplicate entry
+                let errorMessage = '';
+
+                if (patientErr.sqlMessage.includes('phn')) {
+                    errorMessage = 'The PHN number is already registered.';
+                } else if (patientErr.sqlMessage.includes('nic')) {
+                    errorMessage = 'The NIC number is already registered.';
+                } else {
+                    errorMessage = 'A duplicate entry error occurred.';
+                }
+
+                return res.status(400).json({ error: errorMessage });
+            }
+            
+            // Generic error message for other errors
             return res.status(500).json({ error: "Error inserting data into 'patient' table", details: patientErr });
         }
 
-        // Insert data into the 'admission' table
-        const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
-        const admissionValues = [
-            req.body.date,
+        const medicalSql= "INSERT into medical_hx (`phn`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
+        const medicalValues = [
             req.body.phn,
-            req.body.bht,
-            req.body.ward,
-            req.body.consultant,
             req.body.allergy,
-            // req.body.past_obs,
             req.body.past_med.join(', '),
             req.body.past_med_other,
             req.body.past_surg.join(', '),
@@ -74,8 +87,6 @@ app.post('/reg', (req, res) => {
             req.body.diagnosis, 
             req.body.height,
             req.body.weight,
-            // req.body.past_hist,
-            // req.body.complaint,
             req.body.menarche_age,
             req.body.menopausal_age,
             req.body.lmp,
@@ -83,15 +94,51 @@ app.post('/reg', (req, res) => {
             // req.body.other
         ];
 
-        db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
-            if (admissionErr) {
-                console.error("Error inserting data into 'admission' table:", admissionErr);
-                return res.status(500).json({ error: "Error inserting data into 'admission' table", details: admissionErr });
+        db.query(medicalSql, [medicalValues], (medicalErr, medicalResult) => {
+            if (medicalErr) {
+                console.error("Error inserting data into 'patient' table:", medicalErr);
+                return res.status(500).json({ error: "Error inserting data into 'medical_history' table", details: medicalErr });
             }
 
-            return res.status(200).json({ patientResult, admissionResult });
+            // Insert data into the 'admission' table
+            const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
+            const admissionValues = [
+                req.body.date,
+                req.body.phn,
+                req.body.bht,
+                req.body.ward,
+                req.body.consultant,
+                req.body.add_count
+                // req.body.allergy,
+                // // req.body.past_obs,
+                // req.body.past_med.join(', '),
+                // req.body.past_med_other,
+                // req.body.past_surg.join(', '),
+                // req.body.past_surg_other,
+                // req.body.hx_diseases,
+                // req.body.hx_cancer.join(', '),
+                // req.body.hx_cancer_other,
+                // req.body.diagnosis, 
+                // req.body.height,
+                // req.body.weight,
+                // // req.body.past_hist,
+                // // req.body.complaint,
+                // req.body.menarche_age,
+                // req.body.menopausal_age,
+                // req.body.lmp,
+                // req.body.menstrual_cycle          
+                // req.body.other
+            ];
+
+            db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
+                if (admissionErr) {
+                    console.error("Error inserting data into 'admission' table:", admissionErr);
+                    return res.status(500).json({ error: "Error inserting data into 'admission' table", details: admissionErr });
+                }
+                return res.status(200).json({ patientResult, admissionResult, medicalResult});
+            });
         });
-    });
+    })
 });
 
 app.post('/newReg', (req, res) => {
@@ -103,26 +150,7 @@ app.post('/newReg', (req, res) => {
         req.body.bht,
         req.body.ward,
         req.body.consultant,
-        req.body.allergy,
-        req.body.past_med.join(', '),
-        req.body.past_med_other,
-        req.body.past_surg.join(', '),
-        req.body.past_surg_other,
-        req.body.hx_diseases,
-        req.body.hx_cancer.join(', '),
-        req.body.hx_cancer_other,
-        req.body.diagnosis, 
-        req.body.height,
-        req.body.weight,
-        req.body.menarche_age,
-        req.body.menopausal_age,
-        req.body.lmp,
-        req.body.menstrual_cycle,
         req.body.add_count
-        // req.body.other
-        // req.body.past_obs,
-        // req.body.past_hist,
-        // req.body.complaint,
     ];
 
     db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
@@ -218,7 +246,7 @@ app.post('/login',  (req, res) => {
     });
   });
 
-app.get('/details', (req, res) => {
+app.get('/details', (req, res) => {//ethuku iruku
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marital_status, nic,  FROM patient', (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
@@ -303,19 +331,30 @@ app.get('/patientda/:id',(req,res) =>{
     })
 })
 
-app.get('/admisiondetail/:id',(req,res) =>{
-    //const sql ="SELECT * , FLOOR(DATEDIFF(CURRENT_DATE(), dob) / 365) AS age FROM  patient WHERE id = ?";
-    const sql ="select * from admission where phn = ?"
-    const id =req.params.id;
-    db.query(sql,[id],(err,result) =>{
+app.get('/admisiondetail/:phn', (req, res) => {
+    const phn = req.params.phn;
+
+    const sql = `
+        SELECT *
+        FROM admission a
+        INNER JOIN medical_hx m ON a.phn = m.phn
+        WHERE a.phn = ?;
+    `;
+
+    db.query(sql, [phn], (err, results) => {
         if (err) {
-            res.status(500).send('Error retrieving data from database');
-        } else {
-            res.json(result);
+            console.error("Error fetching data:", err);
+            return res.status(500).json({ error: "Error fetching data from the database", details: err.message });
         }
-       
-    })
-})
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: "No data found for the specified PHN" });
+        }
+
+        res.status(200).json(results); // Returns all matching records
+    });
+});
+
 
 app.put('/discharge/:phn', (req, res) => {
     const sql = 'UPDATE admission SET status = "discharged" WHERE phn = ?';
