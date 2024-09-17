@@ -180,8 +180,8 @@ app.get('/require_count/:id', (req, res) => {
 
 
 app.post('/staff_reg', async (req, res) => {
-    //const { full_name, phone_no, role, email, password, status } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // const { full_name, phone_no, role, email, password, status } = req.body;
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
     req.body.password = hashedPassword;
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
@@ -355,6 +355,32 @@ app.get('/admisiondetail/:phn', (req, res) => {
     });
 });
 
+app.get('/admissiondetail/:phn/:add_count', (req, res) => {
+    const phn = req.params.phn;
+    const add_count = parseInt(req.params.add_count, 10);
+
+    // console.log("before");
+
+    const sql = `
+        SELECT *
+        FROM admission 
+        WHERE phn = ? AND add_count=?;
+    `;
+
+    db.query(sql, [phn,add_count], (err, results) => {
+        // console.log("after");
+        if (err) {
+            console.error("Error fetching data:", err);
+            return res.status(500).json({ error: "Error fetching data from the database", details: err.message });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: "No data found for the specified PHN" });
+        }
+
+        res.status(200).json(results); // Returns all matching records
+    });
+});
 
 app.put('/discharge/:phn', (req, res) => {
     const sql = 'UPDATE admission SET status = "discharged" WHERE phn = ?';
@@ -583,3 +609,100 @@ app.put('/patientUpdate/:id', (req, res) => {
         }
     });
 });
+
+app.put('/medicalUpdate/:phn', (req, res) => {
+    const patientPhn = req.params.phn;
+
+    // Prepare values from request body
+    const {
+        allergy,
+        past_med = [],
+        past_med_other,
+        past_surg = [],
+        past_surg_other,
+        hx_diseases,
+        hx_cancer = [],
+        hx_cancer_other,
+        diagnosis,
+        height,
+        weight,
+        menarche_age,
+        menopausal_age,
+        lmp,
+        menstrual_cycle
+    } = req.body;
+
+    // Join arrays with a check to avoid leading commas
+    const formattedPastMed = past_med.filter(Boolean).join(', ');
+    const formattedPastSurg = past_surg.filter(Boolean).join(', ');
+    const formattedHxCancer = hx_cancer.filter(Boolean).join(', ');
+
+    // Update SQL query
+    const updateSql = "UPDATE medical_hx SET `allergy` = ?, `past_med` = ?, `past_med_other` = ?, `past_surg` = ?, `past_surg_other` = ?, `hx_diseases` = ?, `hx_cancer` = ?, `hx_cancer_other` = ?, `diagnosis` = ?, `height` = ?, `weight` = ?, `menarche_age` = ?, `menopausal_age` = ?, `lmp` = ?, `menstrual_cycle` = ? WHERE `phn` = ?";
+    
+    const updateValues = [
+        allergy,
+        formattedPastMed,
+        past_med_other,
+        formattedPastSurg,
+        past_surg_other,
+        hx_diseases,
+        formattedHxCancer,
+        hx_cancer_other,
+        diagnosis, 
+        height,
+        weight,
+        menarche_age,
+        menopausal_age,
+        lmp,
+        menstrual_cycle,
+        patientPhn
+    ];
+
+    db.query(updateSql, updateValues, (err, result) => {
+        if (err) {
+            console.error(err);
+            res.status(500).send('Error updating patient history information');
+        } else {
+            res.send('Patient history information updated successfully');
+        }
+    });
+});
+
+app.put('/admissionUpdate/:phn/:add_count', (req, res) => {
+    const patientPhn = req.params.phn;
+    const add_count = req.params.add_count;
+
+    const updateSql = "UPDATE admission SET  `date` = ?, `bht` = ?, `ward_no` = ?, `consultant` = ? WHERE `phn` = ? AND `add_count` = ?";
+
+    const updateValues = [
+        req.body.date,
+        req.body.bht,
+        req.body.ward,
+        req.body.consultant,
+        patientPhn,
+        add_count
+    ];
+
+    db.query(updateSql, updateValues, (err, result) => {
+        if (err) {
+            console.error(err);
+            res.status(500).send('Error updating admission information');
+        } else {
+            res.send('Admission information updated successfully');
+        }
+    });
+});
+
+app.get('/admissions/:phn', (req, res) => {
+    const phn = req.params.phn;
+    const sql = "SELECT * FROM admission WHERE phn = ?";
+    
+    db.query(sql, [phn], (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Error retrieving admissions' });
+        }
+        res.json(results); // Assuming results is an array of admissions
+    });
+});
+
