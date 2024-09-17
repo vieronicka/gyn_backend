@@ -143,7 +143,7 @@ app.post('/reg', (req, res) => {
 
 app.post('/newReg', (req, res) => {
     // Insert data into the 'admission' table
-    const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`,`add_count`) VALUES (?)";
+    const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
     const admissionValues = [
         req.body.date,
         req.body.phn,
@@ -466,5 +466,120 @@ app.listen(8081,() =>{
 //     });
 // });
 
+app.post('/treat', (req, res) => {
+    // Insert data into the 'patient' table
+    const treatSql = "INSERT INTO treatment (`date`,`phn`,`visit_id`,`visit_count`,`seen_by`,`complaints`,`abnormal_bleeding`,`complaint_other`,`exam_bpa`,`exam_bpb`,`exam_pulse`,`exam_abdominal`,`exam_gynaecology`,`manage_minor_eua`,`manage_minor_eb`,`manage_major`,`manage_medical`,`manage_surgical`,`diagnosis`) VALUES (?)";
+    const treatValues = [
+        req.body.date,
+        req.body.phn,
+        req.body.visit_id,
+        req.body.visit_no,
+        req.body.seenBy,
+        req.body.complaints.join(', '),
+        req.body.abnormalUlerine.join(', '),
+        req.body.otherComplaint,
+        req.body.bpa,
+        req.body.bpb,
+        req.body.pr,
+        req.body.abdominalExam,
+        req.body.gynaecologyExam,
+        req.body.minorEua,
+        req.body.minorEb,
+        req.body.major.join(', '),
+        req.body.medicalManage,
+        req.body.surgicalManage
+    ];
 
-  
+    db.query(treatSql, [treatValues], (treatErr, treatResult) => {
+        if (treatErr) {        
+            return res.status(500).json({ error: "Error inserting data into 'treatment' table", details: treatErr });
+        }
+            // Insert data into the 'admission' table
+            const investigateSql = "INSERT INTO investigation (`visit_id`,`fbc_wbc`,`fbc_hb`,`fbc_pt`,`ufr_wc`,`ufr_rc`,`ufr_protein`,`se_k`,`se_na`,`crp`,`fbs`,`ppbs_ab`,`ppbs_al`,`ppbs_ad`,`lft_alt`,`lft_ast`,`invest_other`,`scan_mri`,`scan_ct`,`uss_tas`,`uss_tus`) VALUES (?)";
+            const investValues = [
+                req.body.visit_id,
+                req.body.wbc,
+                req.body.hb,
+                req.body.plate,
+                req.body.whiteCell,
+                req.body.redCell,
+                req.body.protein,
+                req.body.seK,
+                req.body.seNa,
+                req.body.crp,
+                req.body.fbs,
+                req.body.ppbsAB,
+                req.body.ppbsAL,
+                req.body.ppbsAD,
+                req.body.lftALT,
+                req.body.lftAST,
+                req.body.lftOther,
+                req.body.mri,
+                req.body.ct,
+                req.body.tas,
+                req.body.tus
+            ];
+
+            db.query(investigateSql, [investValues], (investErr, investResult) => {
+                if (investErr) {
+                    console.error("Error inserting data into 'investigation' table:", investErr);
+                    return res.status(500).json({ error: "Error inserting data into 'investigation' table", details: admissionErr });
+                }
+                return res.status(200).json({ treatResult, investResult});
+            });
+    })
+});
+
+app.get('/read/:id',(req,res) =>{
+    const sql ="SELECT * FROM  patient WHERE id = ?";
+    const id=req.params.id;
+    db.query(sql,[id],(err,result) =>{
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+       
+    })
+})
+
+app.get('/readhx/:phn',(req,res) =>{
+    const sql ="SELECT * FROM  medical_hx WHERE phn = ?";
+    const phn=req.params.phn;
+    db.query(sql,[phn],(err,result) =>{
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+       
+    })
+})
+
+app.put('/patientUpdate/:id', (req, res) => {
+    const patientId = req.params.id;
+
+    // Update SQL query
+    const updateSql = "UPDATE patient SET  `phn` = ?, `full_name` = ?, `address` = ?, `nic` = ?, `dob` = ?, `marrital_status` = ?, `phone_no` = ?, `blood_gr` = ? WHERE `id` = ?";
+
+    const updateValues = [
+        req.body.phn,
+        req.body.fname,
+        req.body.address,
+        req.body.nic,
+        req.body.dob,
+        req.body.status,
+        req.body.tp,
+        req.body.bloodgr,
+        patientId
+    ];
+
+    db.query(updateSql, updateValues, (err, result) => {
+        if (err) {
+            console.error(err);
+            res.status(500).send('Error updating patient information');
+        } else {
+            res.send('Patient information updated successfully');
+        }
+    });
+});
