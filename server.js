@@ -31,7 +31,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gyn"
+    database:"gynaecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -44,26 +44,39 @@ app.post('/reg', (req, res) => {
         req.body.nic,
         req.body.dob,
         req.body.status,
-        req.body.bloodgr,
-        req.body.tp
+        req.body.tp,
+        req.body.bloodgr
+        
     ];
 
     db.query(patientSql, [patientValues], (patientErr, patientResult) => {
         if (patientErr) {
-            console.error("Error inserting data into 'patient' table:", patientErr);
+            //console.error("Error inserting data into 'patient' table:", patientErr);
+            
+            // Check for unique constraint violation
+            if (patientErr.code === 'ER_DUP_ENTRY') {
+                // Error message for duplicate entry
+                let errorMessage = '';
+
+                if (patientErr.sqlMessage.includes('phn')) {
+                    errorMessage = 'The PHN number is already registered.';
+                } else if (patientErr.sqlMessage.includes('nic')) {
+                    errorMessage = 'The NIC number is already registered.';
+                } else {
+                    errorMessage = 'A duplicate entry error occurred.';
+                }
+
+                return res.status(400).json({ error: errorMessage });
+            }
+            
+            // Generic error message for other errors
             return res.status(500).json({ error: "Error inserting data into 'patient' table", details: patientErr });
         }
 
-        // Insert data into the 'admission' table
-        const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
-        const admissionValues = [
-            req.body.date,
+        const medicalSql= "INSERT into medical_hx (`phn`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
+        const medicalValues = [
             req.body.phn,
-            req.body.bht,
-            req.body.ward,
-            req.body.consultant,
             req.body.allergy,
-            // req.body.past_obs,
             req.body.past_med.join(', '),
             req.body.past_med_other,
             req.body.past_surg.join(', '),
@@ -74,8 +87,6 @@ app.post('/reg', (req, res) => {
             req.body.diagnosis, 
             req.body.height,
             req.body.weight,
-            // req.body.past_hist,
-            // req.body.complaint,
             req.body.menarche_age,
             req.body.menopausal_age,
             req.body.lmp,
@@ -83,24 +94,97 @@ app.post('/reg', (req, res) => {
             // req.body.other
         ];
 
-        db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
-            if (admissionErr) {
-                console.error("Error inserting data into 'admission' table:", admissionErr);
-                return res.status(500).json({ error: "Error inserting data into 'admission' table", details: admissionErr });
+        db.query(medicalSql, [medicalValues], (medicalErr, medicalResult) => {
+            if (medicalErr) {
+                console.error("Error inserting data into 'patient' table:", medicalErr);
+                return res.status(500).json({ error: "Error inserting data into 'medical_history' table", details: medicalErr });
             }
 
-            return res.status(200).json({ patientResult, admissionResult });
+            // Insert data into the 'admission' table
+            const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
+            const admissionValues = [
+                req.body.date,
+                req.body.phn,
+                req.body.bht,
+                req.body.ward,
+                req.body.consultant,
+                req.body.add_count
+                // req.body.allergy,
+                // // req.body.past_obs,
+                // req.body.past_med.join(', '),
+                // req.body.past_med_other,
+                // req.body.past_surg.join(', '),
+                // req.body.past_surg_other,
+                // req.body.hx_diseases,
+                // req.body.hx_cancer.join(', '),
+                // req.body.hx_cancer_other,
+                // req.body.diagnosis, 
+                // req.body.height,
+                // req.body.weight,
+                // // req.body.past_hist,
+                // // req.body.complaint,
+                // req.body.menarche_age,
+                // req.body.menopausal_age,
+                // req.body.lmp,
+                // req.body.menstrual_cycle          
+                // req.body.other
+            ];
+
+            db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
+                if (admissionErr) {
+                    console.error("Error inserting data into 'admission' table:", admissionErr);
+                    return res.status(500).json({ error: "Error inserting data into 'admission' table", details: admissionErr });
+                }
+                return res.status(200).json({ patientResult, admissionResult, medicalResult});
+            });
         });
+    })
+});
+
+app.post('/newReg', (req, res) => {
+    // Insert data into the 'admission' table
+    const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
+    const admissionValues = [
+        req.body.date,
+        req.body.phn,
+        req.body.bht,
+        req.body.ward,
+        req.body.consultant,
+        req.body.add_count
+    ];
+
+    db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
+        if (admissionErr) {
+            console.error("Error inserting data into 'admission' table:", admissionErr);
+            return res.status(500).json({ error: "Error inserting data into 'admission' table", details: admissionErr });
+        }
+
+        return res.status(200).json({admissionResult});
     });
 });
 
+app.get('/require_count/:id', (req, res) => {
+    // SQL query to get the phn and add_count for a specific id, ordered by add_count ascending, and limit to 1 result
+    const sql = "SELECT phn, add_count FROM admission WHERE phn = ? ORDER BY add_count DESC LIMIT 1";
+    const id = req.params.id;
+    db.query(sql, [id], (err, result) => {
+        if (err) {
+            // Log the error for debugging purposes
+            console.error('Database query error:', err);
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+    });
+});
+
+
 app.post('/staff_reg', async (req, res) => {
-    const { full_name, phone_no, role, email, password, status } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // const { full_name, phone_no, role, email, password, status } = req.body;
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
     req.body.password = hashedPassword;
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
-        req.body.full_name,
         req.body.full_name,
         req.body.phone_no,
         req.body.role,
@@ -162,7 +246,7 @@ app.post('/login',  (req, res) => {
     });
   });
 
-app.get('/details', (req, res) => {
+app.get('/details', (req, res) => {//ethuku iruku
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marital_status, nic,  FROM patient', (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
@@ -247,19 +331,56 @@ app.get('/patientda/:id',(req,res) =>{
     })
 })
 
-app.get('/admisiondetail/:id',(req,res) =>{
-    //const sql ="SELECT * , FLOOR(DATEDIFF(CURRENT_DATE(), dob) / 365) AS age FROM  patient WHERE id = ?";
-    const sql ="select * from admission where phn = ?"
-    const id =req.params.id;
-    db.query(sql,[id],(err,result) =>{
+app.get('/admisiondetail/:phn', (req, res) => {
+    const phn = req.params.phn;
+
+    const sql = `
+        SELECT *
+        FROM admission a
+        INNER JOIN medical_hx m ON a.phn = m.phn
+        WHERE a.phn = ?;
+    `;
+
+    db.query(sql, [phn], (err, results) => {
         if (err) {
-            res.status(500).send('Error retrieving data from database');
-        } else {
-            res.json(result);
+            console.error("Error fetching data:", err);
+            return res.status(500).json({ error: "Error fetching data from the database", details: err.message });
         }
-       
-    })
-})
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: "No data found for the specified PHN" });
+        }
+
+        res.status(200).json(results); // Returns all matching records
+    });
+});
+
+app.get('/admissiondetail/:phn/:add_count', (req, res) => {
+    const phn = req.params.phn;
+    const add_count = parseInt(req.params.add_count, 10);
+
+    // console.log("before");
+
+    const sql = `
+        SELECT *
+        FROM admission 
+        WHERE phn = ? AND add_count=?;
+    `;
+
+    db.query(sql, [phn,add_count], (err, results) => {
+        // console.log("after");
+        if (err) {
+            console.error("Error fetching data:", err);
+            return res.status(500).json({ error: "Error fetching data from the database", details: err.message });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: "No data found for the specified PHN" });
+        }
+
+        res.status(200).json(results); // Returns all matching records
+    });
+});
 
 app.put('/discharge/:phn', (req, res) => {
     const sql = 'UPDATE admission SET status = "discharged" WHERE phn = ?';
@@ -319,8 +440,8 @@ app.delete('/staff_information/:id', (req, res) => {
     if (conditions.length > 0) {
         sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
         params.push(parseInt(limit)); // Adding limit to params
-        //console.log('SQL Query:', sqlQuery);
-        //console.log('Params:', params);
+        // console.log('SQL Query:', sqlQuery);
+        // console.log('Params:', params);
         db.query(sqlQuery, params, (err, results) => {
             if (err) {
                 res.status(500).send('Error retrieving data from database');
@@ -342,3 +463,246 @@ app.get('/logout',(req,res)=>{
 app.listen(8081,() =>{
     console.log("Running...");
 })
+
+// Route to retrieve admitted and discharged patient counts
+// app.get('/api/patient-counts', (req, res) => {
+//     const query = `
+//       SELECT 
+//         SUM(CASE WHEN status = 'admit' THEN 1 ELSE 0 END) AS admittedCount,
+//         SUM(CASE WHEN status = 'discharged' THEN 1 ELSE 0 END) AS dischargedCount
+//       FROM admission;
+//     `;
+  
+//     db.query(query, (err, results) => {
+//       if (err) {
+//         console.error('Database query failed:', err);
+//         return res.status(500).json({ error: 'Database query failed' });
+//       }
+//       console.log('Query Results:', results);
+//       console.log("Inserting into admission:", {
+//         date: req.body.date,
+//         phn: req.body.phn,
+//         bht: req.body.bht,
+//         ward_no: req.body.ward,
+//         consultant: req.body.consultant,
+//         // status: req.body.status // Check this line
+//       });
+      
+//       res.json(results[0]);
+//     });
+// });
+
+app.post('/treat', (req, res) => {
+    // Insert data into the 'patient' table
+    const treatSql = "INSERT INTO treatment (`date`,`phn`,`visit_id`,`visit_count`,`seen_by`,`complaints`,`abnormal_bleeding`,`complaint_other`,`exam_bpa`,`exam_bpb`,`exam_pulse`,`exam_abdominal`,`exam_gynaecology`,`manage_minor_eua`,`manage_minor_eb`,`manage_major`,`manage_medical`,`manage_surgical`,`diagnosis`) VALUES (?)";
+    const treatValues = [
+        req.body.date,
+        req.body.phn,
+        req.body.visit_id,
+        req.body.visit_no,
+        req.body.seenBy,
+        req.body.complaints.join(', '),
+        req.body.abnormalUlerine.join(', '),
+        req.body.otherComplaint,
+        req.body.bpa,
+        req.body.bpb,
+        req.body.pr,
+        req.body.abdominalExam,
+        req.body.gynaecologyExam,
+        req.body.minorEua,
+        req.body.minorEb,
+        req.body.major.join(', '),
+        req.body.medicalManage,
+        req.body.surgicalManage
+    ];
+
+    db.query(treatSql, [treatValues], (treatErr, treatResult) => {
+        if (treatErr) {        
+            return res.status(500).json({ error: "Error inserting data into 'treatment' table", details: treatErr });
+        }
+            // Insert data into the 'admission' table
+            const investigateSql = "INSERT INTO investigation (`visit_id`,`fbc_wbc`,`fbc_hb`,`fbc_pt`,`ufr_wc`,`ufr_rc`,`ufr_protein`,`se_k`,`se_na`,`crp`,`fbs`,`ppbs_ab`,`ppbs_al`,`ppbs_ad`,`lft_alt`,`lft_ast`,`invest_other`,`scan_mri`,`scan_ct`,`uss_tas`,`uss_tus`) VALUES (?)";
+            const investValues = [
+                req.body.visit_id,
+                req.body.wbc,
+                req.body.hb,
+                req.body.plate,
+                req.body.whiteCell,
+                req.body.redCell,
+                req.body.protein,
+                req.body.seK,
+                req.body.seNa,
+                req.body.crp,
+                req.body.fbs,
+                req.body.ppbsAB,
+                req.body.ppbsAL,
+                req.body.ppbsAD,
+                req.body.lftALT,
+                req.body.lftAST,
+                req.body.lftOther,
+                req.body.mri,
+                req.body.ct,
+                req.body.tas,
+                req.body.tus
+            ];
+
+            db.query(investigateSql, [investValues], (investErr, investResult) => {
+                if (investErr) {
+                    console.error("Error inserting data into 'investigation' table:", investErr);
+                    return res.status(500).json({ error: "Error inserting data into 'investigation' table", details: admissionErr });
+                }
+                return res.status(200).json({ treatResult, investResult});
+            });
+    })
+});
+
+app.get('/read/:id',(req,res) =>{
+    const sql ="SELECT * FROM  patient WHERE id = ?";
+    const id=req.params.id;
+    db.query(sql,[id],(err,result) =>{
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+       
+    })
+})
+
+app.get('/readhx/:phn',(req,res) =>{
+    const sql ="SELECT * FROM  medical_hx WHERE phn = ?";
+    const phn=req.params.phn;
+    db.query(sql,[phn],(err,result) =>{
+        if (err) {
+            res.status(500).send('Error retrieving data from database');
+        } else {
+            res.json(result);
+        }
+       
+    })
+})
+
+app.put('/patientUpdate/:id', (req, res) => {
+    const patientId = req.params.id;
+
+    // Update SQL query
+    const updateSql = "UPDATE patient SET  `phn` = ?, `full_name` = ?, `address` = ?, `nic` = ?, `dob` = ?, `marrital_status` = ?, `phone_no` = ?, `blood_gr` = ? WHERE `id` = ?";
+
+    const updateValues = [
+        req.body.phn,
+        req.body.fname,
+        req.body.address,
+        req.body.nic,
+        req.body.dob,
+        req.body.status,
+        req.body.tp,
+        req.body.bloodgr,
+        patientId
+    ];
+
+    db.query(updateSql, updateValues, (err, result) => {
+        if (err) {
+            console.error(err);
+            res.status(500).send('Error updating patient information');
+        } else {
+            res.send('Patient information updated successfully');
+        }
+    });
+});
+
+app.put('/medicalUpdate/:phn', (req, res) => {
+    const patientPhn = req.params.phn;
+
+    // Prepare values from request body
+    const {
+        allergy,
+        past_med = [],
+        past_med_other,
+        past_surg = [],
+        past_surg_other,
+        hx_diseases,
+        hx_cancer = [],
+        hx_cancer_other,
+        diagnosis,
+        height,
+        weight,
+        menarche_age,
+        menopausal_age,
+        lmp,
+        menstrual_cycle
+    } = req.body;
+
+    // Join arrays with a check to avoid leading commas
+    const formattedPastMed = past_med.filter(Boolean).join(', ');
+    const formattedPastSurg = past_surg.filter(Boolean).join(', ');
+    const formattedHxCancer = hx_cancer.filter(Boolean).join(', ');
+
+    // Update SQL query
+    const updateSql = "UPDATE medical_hx SET `allergy` = ?, `past_med` = ?, `past_med_other` = ?, `past_surg` = ?, `past_surg_other` = ?, `hx_diseases` = ?, `hx_cancer` = ?, `hx_cancer_other` = ?, `diagnosis` = ?, `height` = ?, `weight` = ?, `menarche_age` = ?, `menopausal_age` = ?, `lmp` = ?, `menstrual_cycle` = ? WHERE `phn` = ?";
+    
+    const updateValues = [
+        allergy,
+        formattedPastMed,
+        past_med_other,
+        formattedPastSurg,
+        past_surg_other,
+        hx_diseases,
+        formattedHxCancer,
+        hx_cancer_other,
+        diagnosis, 
+        height,
+        weight,
+        menarche_age,
+        menopausal_age,
+        lmp,
+        menstrual_cycle,
+        patientPhn
+    ];
+
+    db.query(updateSql, updateValues, (err, result) => {
+        if (err) {
+            console.error(err);
+            res.status(500).send('Error updating patient history information');
+        } else {
+            res.send('Patient history information updated successfully');
+        }
+    });
+});
+
+app.put('/admissionUpdate/:phn/:add_count', (req, res) => {
+    const patientPhn = req.params.phn;
+    const add_count = req.params.add_count;
+
+    const updateSql = "UPDATE admission SET  `date` = ?, `bht` = ?, `ward_no` = ?, `consultant` = ? WHERE `phn` = ? AND `add_count` = ?";
+
+    const updateValues = [
+        req.body.date,
+        req.body.bht,
+        req.body.ward,
+        req.body.consultant,
+        patientPhn,
+        add_count
+    ];
+
+    db.query(updateSql, updateValues, (err, result) => {
+        if (err) {
+            console.error(err);
+            res.status(500).send('Error updating admission information');
+        } else {
+            res.send('Admission information updated successfully');
+        }
+    });
+});
+
+app.get('/admissions/:phn', (req, res) => {
+    const phn = req.params.phn;
+    const sql = "SELECT * FROM admission WHERE phn = ?";
+    
+    db.query(sql, [phn], (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Error retrieving admissions' });
+        }
+        res.json(results); // Assuming results is an array of admissions
+    });
+});
+
