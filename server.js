@@ -252,6 +252,8 @@ app.post('/login',  (req, res) => {
         }
         res.send('Row updated successfully');
     });
+});
+  
 
 app.get('/details', (req, res) => {
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
@@ -715,3 +717,24 @@ app.get('/admissions/:phn', (req, res) => {
     });
 });
 
+// app.get('/api/count', (req, res) => {
+//     const query = 'SELECT COUNT(*) AS patientCount FROM patient';
+//     db.query(query, (err, result) => {
+//       if (err) throw err;
+      
+//       console.log(result); // Log the result to the console
+//       res.json(result[0]); // Send the count as a response
+//     });
+//   });
+
+//   app.get('/api/admitCount', (req, res) => {
+//     const query = 'SELECT COUNT(*) AS admitPatientCount FROM admission WHERE status = \'admit\'';
+//     db.query(query, (err, result) => {
+//       if (err) throw err;
+
+//       console.log(result); // Log the result to the console for debugging
+//       res.json(result[0]); // Send the count as a JSON response
+//     });
+// });
+
+  
