@@ -100,15 +100,12 @@ app.post('/staff_reg', async (req, res) => {
     const staffSql = "INSERT INTO staff (`full_name`,`phone_no`,`role`,`email`,`password`,`status`) VALUES (?)";
     const staffValues = [
         req.body.full_name,
-        req.body.full_name,
         req.body.phone_no,
         req.body.role,
         req.body.email,
         req.body.password,
         req.body.status
     ];
-    console.log(staffValues);
-    console.log(staffValues);
     db.query(staffSql, [staffValues], (staffErr, staffResult) => {
         if (staffErr) {
             return res.json({ error: "Error inserting data into 'staff' table", details: staffErr });
@@ -149,19 +146,28 @@ app.post('/login',  (req, res) => {
   app.put('/staff_update/:id', async (req, res) => {
     const id = req.params.id;
     const { full_name, phone_no, role, email, password, status } = req.body; 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    req.body.password = hashedPassword;
-   
-    
-    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
-    db.query(sql, [full_name, phone_no, role, email, hashedPassword, status, id], (err, result) => {
-      if (err) {
-        console.error('Error updating row:', err);
-        return res.status(500).send('Error updating row');
+
+    let sql, params;
+    if (password) {
+        // If a new password is provided, hash it
+        const hashedPassword = await bcrypt.hash(password, 10);
+        sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
+        params = [full_name, phone_no, role, email, hashedPassword, status, id];
+    } else {
+        // If no new password is provided, do not update the password field
+        sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, status = ? WHERE id = ?';
+        params = [full_name, phone_no, role, email, status, id];
+    }
+
+    db.query(sql, params, (err, result) => {
+        if (err) {
+            console.error('Error updating row:', err);
+            return res.status(500).send('Error updating row');
         }
-        res.send('Row updated successfully');        
+        res.send('Row updated successfully');
     });
-  });
+});
+
 
 
 app.get('/details', (req, res) => {
@@ -175,13 +181,16 @@ app.get('/details', (req, res) => {
 });
 
 app.get('/data', (req, res) => {
-    const limit = req.query.limit || 20; // Default limit to 10 if not specified in the query string
-    db.query('SELECT * FROM patient LIMIT ?', [limit], (err, results) => {
+    const limit = parseInt(req.query.limit) || 6;
+    const page = parseInt(req.query.page) || 1;
+    const offset = (page - 1) * limit;
+    
+    db.query('SELECT * FROM patient LIMIT ? OFFSET ?', [limit, offset], (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
         } else {
             res.json(results);
-        }
+     }
     });
 });
 
@@ -327,12 +336,7 @@ app.delete('/staff_information/:id', (req, res) => {
     });
   });
 
-app.get('/logout',(req,res)=>{
-    //navigate('/');
-    // req.session.user = null;
-    // req.session.destroy();
-    // return res.json("success")
-})
+
 app.listen(8081,() =>{
     console.log("Running...");
 })
