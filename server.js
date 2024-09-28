@@ -232,22 +232,29 @@ app.post('/login',  (req, res) => {
   app.put('/staff_update/:id', async (req, res) => {
     const id = req.params.id;
     const { full_name, phone_no, role, email, password, status } = req.body; 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    req.body.password = hashedPassword;
-   
-    
-    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
-    db.query(sql, [full_name, phone_no, role, email, hashedPassword, status, id], (err, result) => {
-      if (err) {
-        console.error('Error updating row:', err);
-        return res.status(500).send('Error updating row');
-        }
-        res.send('Row updated successfully');        
-    });
-  });
 
-app.get('/details', (req, res) => {//ethuku iruku
-    db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marital_status, nic,  FROM patient', (err, results) => {
+    let sql, params;
+    if (password) {
+        // If a new password is provided, hash it
+        const hashedPassword = await bcrypt.hash(password, 10);
+        sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
+        params = [full_name, phone_no, role, email, hashedPassword, status, id];
+    } else {
+        // If no new password is provided, do not update the password field
+        sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, status = ? WHERE id = ?';
+        params = [full_name, phone_no, role, email, status, id];
+    }
+
+    db.query(sql, params, (err, result) => {
+        if (err) {
+            console.error('Error updating row:', err);
+            return res.status(500).send('Error updating row');
+        }
+        res.send('Row updated successfully');
+    });
+
+app.get('/details', (req, res) => {
+    db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
         } else {
@@ -266,7 +273,7 @@ app.get('/data', (req, res) => {
             res.status(500).send('Error retrieving data from database');
         } else {
             res.json(results);
-        }
+     }
     });
 });
 
@@ -417,6 +424,7 @@ app.delete('/staff_information/:id', (req, res) => {
     });
   });
 
+
   app.post('/searchdata', (req, res) => {
     const { val } = req.body;
     const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
@@ -460,6 +468,7 @@ app.get('/logout',(req,res)=>{
     // req.session.destroy();
     // return res.json("success")
 })
+
 app.listen(8081,() =>{
     console.log("Running...");
 })
