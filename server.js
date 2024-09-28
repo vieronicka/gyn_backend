@@ -141,8 +141,7 @@ app.post('/login',  (req, res) => {
     }  
     });
   });
-
-
+ 
   app.put('/staff_update/:id', async (req, res) => {
     const id = req.params.id;
     const { full_name, phone_no, role, email, password, status } = req.body; 
@@ -167,8 +166,6 @@ app.post('/login',  (req, res) => {
         res.send('Row updated successfully');
     });
 });
-
-
 
 app.get('/details', (req, res) => {
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
