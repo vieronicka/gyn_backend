@@ -109,25 +109,6 @@ app.post('/reg', (req, res) => {
                 req.body.ward,
                 req.body.consultant,
                 req.body.add_count
-                // req.body.allergy,
-                // // req.body.past_obs,
-                // req.body.past_med.join(', '),
-                // req.body.past_med_other,
-                // req.body.past_surg.join(', '),
-                // req.body.past_surg_other,
-                // req.body.hx_diseases,
-                // req.body.hx_cancer.join(', '),
-                // req.body.hx_cancer_other,
-                // req.body.diagnosis, 
-                // req.body.height,
-                // req.body.weight,
-                // // req.body.past_hist,
-                // // req.body.complaint,
-                // req.body.menarche_age,
-                // req.body.menopausal_age,
-                // req.body.lmp,
-                // req.body.menstrual_cycle          
-                // req.body.other
             ];
 
             db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
@@ -310,7 +291,6 @@ app.get('/view/:id',(req,res) =>{
         } else {
             res.json(result);
         }
-       
     })
 })
 
@@ -323,7 +303,6 @@ app.get('/about/:id',(req,res) =>{
         } else {
             res.json(result);
         }
-       
     })
 })
 
@@ -336,7 +315,6 @@ app.get('/patientda/:id',(req,res) =>{
         } else {
             res.json(result);
         }
-       
     })
 })
 
@@ -464,44 +442,9 @@ app.delete('/staff_information/:id', (req, res) => {
     }
 });
 
-app.get('/logout',(req,res)=>{
-    //navigate('/');
-    // req.session.user = null;
-    // req.session.destroy();
-    // return res.json("success")
-})
-
 app.listen(8081,() =>{
     console.log("Running...");
 })
-
-// Route to retrieve admitted and discharged patient counts
-// app.get('/api/patient-counts', (req, res) => {
-//     const query = `
-//       SELECT 
-//         SUM(CASE WHEN status = 'admit' THEN 1 ELSE 0 END) AS admittedCount,
-//         SUM(CASE WHEN status = 'discharged' THEN 1 ELSE 0 END) AS dischargedCount
-//       FROM admission;
-//     `;
-  
-//     db.query(query, (err, results) => {
-//       if (err) {
-//         console.error('Database query failed:', err);
-//         return res.status(500).json({ error: 'Database query failed' });
-//       }
-//       console.log('Query Results:', results);
-//       console.log("Inserting into admission:", {
-//         date: req.body.date,
-//         phn: req.body.phn,
-//         bht: req.body.bht,
-//         ward_no: req.body.ward,
-//         consultant: req.body.consultant,
-//         // status: req.body.status // Check this line
-//       });
-      
-//       res.json(results[0]);
-//     });
-// });
 
 app.post('/treat', (req, res) => {
     // Insert data into the 'patient' table
@@ -716,25 +659,3 @@ app.get('/admissions/:phn', (req, res) => {
         res.json(results); // Assuming results is an array of admissions
     });
 });
-
-// app.get('/api/count', (req, res) => {
-//     const query = 'SELECT COUNT(*) AS patientCount FROM patient';
-//     db.query(query, (err, result) => {
-//       if (err) throw err;
-      
-//       console.log(result); // Log the result to the console
-//       res.json(result[0]); // Send the count as a response
-//     });
-//   });
-
-//   app.get('/api/admitCount', (req, res) => {
-//     const query = 'SELECT COUNT(*) AS admitPatientCount FROM admission WHERE status = \'admit\'';
-//     db.query(query, (err, result) => {
-//       if (err) throw err;
-
-//       console.log(result); // Log the result to the console for debugging
-//       res.json(result[0]); // Send the count as a JSON response
-//     });
-// });
-
-  
