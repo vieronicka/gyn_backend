@@ -205,6 +205,7 @@ app.post('/staff_reg', async (req, res) => {
 app.post('/login',  (req, res) => {
     const { email, password } = req.body;
     const sql = "SELECT * FROM staff WHERE email = ?";
+    console.log(req.body);
     db.query(sql, [email],  (err, results) => {
       if (err) {
         return res.status(500).send('Server error');
@@ -218,11 +219,12 @@ app.post('/login',  (req, res) => {
       if (!isMatch) {
         return res.status(400).send('Invalid credentials');
       }else{
-        const payload = { id: user.id, full_name: user.full_name };
+        const payload = { id: user.id, full_name: user.full_name,  role: user.role};
         jwt.sign(payload, keys.secretOrKey, { expiresIn: 3600 }, (err, token) => {
           res.json({
             success: true,
             token: 'Bearer ' + token,
+            role: user.role,
           });
         });
     }  
