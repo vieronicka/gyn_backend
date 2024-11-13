@@ -6,6 +6,7 @@ import session from "express-session";
 import bcrypt from "bcryptjs";
 import keys from './Config/keys.js';
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 
 const app = express();
 
@@ -186,7 +187,7 @@ app.post('/staff_reg', async (req, res) => {
 app.post('/login',  (req, res) => {
     const { email, password } = req.body;
     const sql = "SELECT * FROM staff WHERE email = ?";
-    console.log(req.body);
+    // console.log(req.body);
     db.query(sql, [email],  (err, results) => {
       if (err) {
         return res.status(500).send('Server error');
@@ -671,6 +672,152 @@ app.get('/admissions/:phn', (req, res) => {
         res.json(results); // Assuming results is an array of admissions
     });
 });
+
+app.get('/stats', (req, res) => {
+    const dischargedSql = "SELECT COUNT(*) AS discharged_count FROM admission WHERE status = 'discharged'";
+    const admittedSql = "SELECT COUNT(*) AS admitted_count FROM admission WHERE status = 'admit'";
+    const total_patientsSql = "SELECT COUNT(*) AS total_patients FROM patient";
+    const admissionSql = "SELECT COUNT(*) AS admission_count FROM admission WHERE DATE(date) >= CURDATE() - INTERVAL 30 DAY";
+
+    // Query to get discharged count
+    db.query(dischargedSql, (err, dischargedResults) => {
+        if (err) {
+            return res.status(500).json({ error: 'Error retrieving discharged count' });
+        }
+
+        // Query to get admitted count (active patients)
+        db.query(admittedSql, (err, admittedResults) => {
+            if (err) {
+                return res.status(500).json({ error: 'Error retrieving admitted count' });
+            }
+
+            db.query(total_patientsSql,(err,patientResults)=>{
+                if(err){
+                    return res.status(500).json({error:"Error retriveing Total patients_count"});
+               }
+               
+               db.query(admissionSql, (err, admissionResults) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Error retrieving admission count' });
+                }
+                        const discharged_count = dischargedResults[0].discharged_count;
+                        const admitted_count = admittedResults[0].admitted_count;
+                        const total_patients = patientResults[0].total_patients;
+                        const admissionCount = admissionResults[0].admission_count;
+                        
+                        const admissionRate = ((admissionCount / total_patients) * 100).toFixed(2);
+
+                        const stats = {
+                            total_patients: total_patients, 
+                            active_patients: admitted_count, 
+                            discharged_patients: discharged_count, 
+                            admission_rate: `${admissionRate}%`
+                        };
+                        res.json(stats);
+                    });
+                });
+            });
+        });
+    });
+
+    const OTP_EXPIRATION = 300000; // 5 minutes in milliseconds
+    const transporter = nodemailer.createTransport({
+      service: 'Gmail', // or your email provider
+      auth: {
+        user: 'gyntngv@gmail.com', // replace with your email
+        pass: 'dbqu luio zpho ktrb' // replace with your email password
+      }
+    });
+
+    app.post('/forgotpassword', (req, res) => {
+        const { email } = req.body; // Make sure email is being received correctly from the request
+    
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required' });
+        }
+    
+        const otp = Math.floor(100000 + Math.random() * 900000); // Generate a 6-digit OTP
+        const expiresAt = Math.floor(Date.now() / 1000) + Math.floor(OTP_EXPIRATION / 1000);
+    
+        const query = "UPDATE staff SET otp = ?, otp_expires = FROM_UNIXTIME(?) WHERE email = ?";
+        db.query(query, [otp, expiresAt, email], (err, result) => {
+            if (err) {
+                return res.status(500).json({ message: 'Server error' });
+            }
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'Email not found' });
+            }
+            const mailOptions = {
+                from: 'gyntngv@gmail.com',
+                to: email, // Email is now defined in this scope
+                subject: 'Your OTP Code',
+                text: `Your OTP code is ${otp}`
+            };
+            
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    return res.status(500).json({ message: 'Error sending email' });
+                }
+                
+                // Log `info` only if there’s no error
+                res.status(200).json({ message: 'OTP sent successfully' });
+            });
+            
+        });
+    });
+    
+    
+
+// Endpoint to verify OTP
+app.post('/verifyotp', (req, res) => {
+    const { email, otp } = req.body;
+    const query = "SELECT otp, UNIX_TIMESTAMP(otp_expires) AS otp_expires FROM staff WHERE email = ?";
+    db.query(query, [email], (err, results) => {
+      if (err || results.length === 0) {
+        console.log("Database error or user not found");
+        return res.status(500).json({ message: 'User not found' });
+      }
+  
+      const user = results[0];
+      const otpExpiresInMs = user.otp_expires * 1000; 
+  
+      if (parseInt(user.otp) !== parseInt(otp)) {
+        return res.status(400).json({ message: 'Incorrect OTP' });
+      }
+  
+      if (Date.now() > otpExpiresInMs) {
+        return res.status(400).json({ message: 'Expired OTP' });
+      }
+  
+      res.json({ message: 'OTP verified' });
+    });
+  });
+  
+  
+
+
+// Endpoint to reset password
+app.post('/resetpassword', async (req, res) => {
+  const { email, newPassword } = req.body;
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  const query = "UPDATE staff SET password = ?, otp = NULL, otp_expires = NULL WHERE email = ?";
+  db.query(query, [hashedPassword, email], (err, result) => {
+    if (err) return res.status(500).json({ message: 'Error resetting password' });
+    res.json({ message: 'Password reset successful. Please log in.' });
+  });
+});
+
+
+// app.get('/api/count', (req, res) => {
+//     const query = 'SELECT COUNT(*) AS patientCount FROM patient';
+//     db.query(query, (err, result) => {
+//       if (err) throw err;
+      
+//       console.log(result); // Log the result to the console
+//       res.json(result[0]); // Send the count as a response
+//     });
+//   });
 
 app.get('/require_visit_count/:visit_un', (req, res) => {
     const visitUn = req.params.visit_un;
