@@ -764,6 +764,11 @@ app.get('/stats', (req, res) => {
             });
             
         });
+        console.log(otp);
+        console.log(email);
+        // console.log(error);
+
+
     });
     
     
@@ -875,164 +880,64 @@ app.get('/visitdetail/:visit_unique', (req, res) => {
     });
 });
 
-// app.put('/visitUpdate/:visit_unique', (req, res) => {
-//     const visit_unique = parseInt(req.params.visit_unique, 10);
-
-//     const updateTreatSql = "UPDATE treatment `date` = ?,`visit_id` = ?,`admission_id` = ?,`visit_count` = ?,`seen_by` = ?,`complaints` = ?,`abnormal_bleeding` = ?,`complaint_other` = ?,`exam_bpa` = ?,`exam_bpb` = ?,`exam_pulse` = ?,`exam_abdominal` = ?,`exam_gynaecology` = ?,`manage_minor_eua` = ?,`manage_minor_eb` = ?,`manage_major` = ?,`manage_medical` = ?,`manage_surgical` = ?";
-//     const updateTreatValues = [
-//         req.body.date,
-//         // req.body.phn,
-//         req.body.visit_id,
-//         req.body.admission_id,
-//         req.body.visit_no,
-//         req.body.seenBy,
-//         req.body.complaints.join(', '),
-//         req.body.abnormalUlerine.join(', '),
-//         req.body.otherComplaint,
-//         req.body.bpa,
-//         req.body.bpb,
-//         req.body.pr,
-//         req.body.abdominalExam,
-//         req.body.gynaecologyExam,
-//         req.body.minorEua,
-//         req.body.minorEb,
-//         req.body.major.join(', '),
-//         req.body.medicalManage,
-//         req.body.surgicalManage,
-//         visit_unique
-//     ]
-
-//     const updateInvestigateSql = "UPDATE investigation `visit_id` = ?, `fbc_wbc` = ?, `fbc_hb` = ?, `fbc_pt` = ?, `ufr_wc` = ?, `ufr_rc` = ?, `ufr_protein` = ?, `se_k` = ?, `se_na` = ?, `crp` = ?, `fbs` = ?, `ppbs_ab` = ?, `ppbs_al` = ?, `ppbs_ad` = ?, `lft_alt` = ?, `lft_ast` = ?, `invest_other` = ?, `scan_mri` = ?, `scan_ct` = ?, `uss_tas` = ?, `uss_tus` = ?";
-//     const updateInvestValues = [
-//         req.body.visit_id,
-//         req.body.wbc,
-//         req.body.hb,
-//         req.body.plate,
-//         req.body.whiteCell,
-//         req.body.redCell,
-//         req.body.protein,
-//         req.body.seK,
-//         req.body.seNa,
-//         req.body.crp,
-//         req.body.fbs,
-//         req.body.ppbsAB,
-//         req.body.ppbsAL,
-//         req.body.ppbsAD,
-//         req.body.lftALT,
-//         req.body.lftAST,
-//         req.body.lftOther,
-//         req.body.mri,
-//         req.body.ct,
-//         req.body.tas,
-//         req.body.tus
-//     ];
-
-//     db.query(updateTreatSql, updateTreatValues, (err, result) => {
-//         if (err) {
-//             console.error(err);
-//             res.status(500).send('Error updating visit information');
-//         } else {
-//             res.send('visit information updated successfully');
-//         }
-//     });
-// });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 app.put('/visitUpdate/:visit_unique', (req, res) => {
-    const visit_unique = (req.params.visit_unique);
-    // const visit_id = req.body.visit_id; // Ensure visit_id is provided
-console.log(visit_unique);
-    // if (!visit_id) {
-    //     return res.status(400).json({ error: "visit_id is required." });
-    // }
+    const visit_unique = parseInt(req.params.visit_unique, 10);
+    const {
+        date,
+        // req.body.phn,
+        visit_id,
+        admission_id,
+        visit_no,
+        seenBy,
+        complaints=[],
+        abnormalUlerine=[],
+        otherComplaint,
+        bpa,
+        bpb,
+        pr,
+        abdominalExam,
+        gynaecologyExam,
+        minorEua,
+        minorEb,
+        major=[],
+        medicalManage,
+        surgicalManage,
+    } = req.body;
 
-    const updateTreatSql = `UPDATE treatment SET 
-        \`date\` = ?, 
-        \`visit_id\` = ?, 
-        \`admission_id\` = ?, 
-        \`visit_count\` = ?, 
-        \`seen_by\` = ?, 
-        \`complaints\` = ?, 
-        \`abnormal_bleeding\` = ?, 
-        \`complaint_other\` = ?, 
-        \`exam_bpa\` = ?, 
-        \`exam_bpb\` = ?, 
-        \`exam_pulse\` = ?, 
-        \`exam_abdominal\` = ?, 
-        \`exam_gynaecology\` = ?, 
-        \`manage_minor_eua\` = ?, 
-        \`manage_minor_eb\` = ?, 
-        \`manage_major\` = ?, 
-        \`manage_medical\` = ?, 
-        \`manage_surgical\` = ? 
-        WHERE \`visit_id\` = ?`;
+    const formattedPastMed = complaints.filter(Boolean).join(', ');
+    const formattedPastSurg = abnormalUlerine.filter(Boolean).join(', ');
+    const formattedHxCancer = major.filter(Boolean).join(', ');
 
+    const updateTreatSql = "UPDATE treatment SET `date` = ?,`seen_by` = ?,`complaints` = ?,`abnormal_bleeding` = ?,`complaint_other` = ?,`exam_bpa` = ?,`exam_bpb` = ?,`exam_pulse` = ?,`exam_abdominal` = ?,`exam_gynaecology` = ?,`manage_minor_eua` = ?,`manage_minor_eb` = ?,`manage_major` = ?,`manage_medical` = ?,`manage_surgical` = ? where `visit_id` = ?";
     const updateTreatValues = [
-        req.body.date,
-        req.body.visit_id,
-        req.body.admission_id,
-        req.body.visit_no,
-        req.body.seenBy,
-        req.body.complaints.join(', '),
-        req.body.abnormalUlerine.join(', '),
-        req.body.otherComplaint,
-        req.body.bpa,
-        req.body.bpb,
-        req.body.pr,
-        req.body.abdominalExam,
-        req.body.gynaecologyExam,
-        req.body.minorEua,
-        req.body.minorEb,
-        req.body.major.join(', '),
-        req.body.medicalManage,
-        req.body.surgicalManage,
+        date,
+        seenBy,
+        formattedPastMed,
+        formattedPastSurg,
+        otherComplaint,
+        bpa,
+        bpb,
+        pr,
+        abdominalExam,
+        gynaecologyExam,
+        minorEua,
+        minorEb,
+        formattedHxCancer,
+        medicalManage,
+        surgicalManage,
         visit_unique
     ];
 
-    const updateInvestigateSql = `UPDATE investigation SET 
-        \`visit_id\` = ?, 
-        \`fbc_wbc\` = ?, 
-        \`fbc_hb\` = ?, 
-        \`fbc_pt\` = ?, 
-        \`ufr_wc\` = ?, 
-        \`ufr_rc\` = ?, 
-        \`ufr_protein\` = ?, 
-        \`se_k\` = ?, 
-        \`se_na\` = ?, 
-        \`crp\` = ?, 
-        \`fbs\` = ?, 
-        \`ppbs_ab\` = ?, 
-        \`ppbs_al\` = ?, 
-        \`ppbs_ad\` = ?, 
-        \`lft_alt\` = ?, 
-        \`lft_ast\` = ?, 
-        \`invest_other\` = ?, 
-        \`scan_mri\` = ?, 
-        \`scan_ct\` = ?, 
-        \`uss_tas\` = ?, 
-        \`uss_tus\` = ? 
-        WHERE \`visit_id\` = ?`;
+    db.query(updateTreatSql, updateTreatValues, (err,result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).send({ message: "Error updating treatment" });
+            }
+            //res.send({ message: "Treatment updated successfully" });
+        });
 
+    const updateInvestigateSql = "UPDATE investigation SET `fbc_wbc` = ?, `fbc_hb` = ?, `fbc_pt` = ?, `ufr_wc` = ?, `ufr_rc` = ?, `ufr_protein` = ?, `se_k` = ?, `se_na` = ?, `crp` = ?, `fbs` = ?, `ppbs_ab` = ?, `ppbs_al` = ?, `ppbs_ad` = ?, `lft_alt` = ?, `lft_ast` = ?, `invest_other` = ?, `scan_mri` = ?, `scan_ct` = ?, `uss_tas` = ?, `uss_tus` = ? where `visit_id` = ?";
     const updateInvestValues = [
-        req.body.visit_id,
         req.body.wbc,
         req.body.hb,
         req.body.plate,
@@ -1056,39 +961,170 @@ console.log(visit_unique);
         visit_unique
     ];
 
-    db.beginTransaction((err) => {
+    db.query(updateInvestigateSql, updateInvestValues, (err, result) => {
         if (err) {
-            console.error("Transaction initialization failed:", err);
-            res.status(500).send('Transaction initialization failed');
-            return;
+            console.error(err);
+            return res.status(500).send({ message: "Error updating investigation" });
+            //res.status(500).send('Error updating visit information');
+        } else {
+            res.send('visit information updated successfully');
         }
-
-        db.query(updateTreatSql, updateTreatValues, (err, result) => {
-            if (err) {
-                return db.rollback(() => {
-                    console.error("Error updating treatment information:", err);
-                    res.status(500).send('Error updating treatment information');
-                });
-            }
-
-            db.query(updateInvestigateSql, updateInvestValues, (err, result) => {
-                if (err) {
-                    return db.rollback(() => {
-                        console.error("Error updating investigation information:", err);
-                        res.status(500).send('Error updating investigation information');
-                    });
-                }
-
-                db.commit((err) => {
-                    if (err) {
-                        return db.rollback(() => {
-                            console.error("Transaction commit failed:", err);
-                            res.status(500).send('Transaction commit failed');
-                        });
-                    }
-                    res.send('Visit information updated successfully');
-                });
-            });
-        });
     });
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// app.put('/visitUpdate/:visit_unique', (req, res) => {
+//     const visit_unique = (req.params.visit_unique);
+//     // const visit_id = req.body.visit_id; // Ensure visit_id is provided
+//     // if (!visit_id) {
+//     //     return res.status(400).json({ error: "visit_id is required." });
+//     // }
+
+//     const updateTreatSql = `UPDATE treatment SET 
+//         \`date\` = ?,  
+//         \`admission_id\` = ?, 
+//         \`visit_count\` = ?, 
+//         \`seen_by\` = ?, 
+//         \`complaints\` = ?, 
+//         \`abnormal_bleeding\` = ?, 
+//         \`complaint_other\` = ?, 
+//         \`exam_bpa\` = ?, 
+//         \`exam_bpb\` = ?, 
+//         \`exam_pulse\` = ?, 
+//         \`exam_abdominal\` = ?, 
+//         \`exam_gynaecology\` = ?, 
+//         \`manage_minor_eua\` = ?, 
+//         \`manage_minor_eb\` = ?, 
+//         \`manage_major\` = ?, 
+//         \`manage_medical\` = ?, 
+//         \`manage_surgical\` = ? 
+//         WHERE \`visit_id\` = ?`;
+
+//     const updateTreatValues = [
+//         req.body.date,
+//         req.body.visit_id,
+//         req.body.admission_id,
+//         req.body.visit_no,
+//         req.body.seenBy,
+//         req.body.complaints.join(', '),
+//         req.body.abnormalUlerine.join(', '),
+//         req.body.otherComplaint,
+//         req.body.bpa,
+//         req.body.bpb,
+//         req.body.pr,
+//         req.body.abdominalExam,
+//         req.body.gynaecologyExam,
+//         req.body.minorEua,
+//         req.body.minorEb,
+//         req.body.major.join(', '),
+//         req.body.medicalManage,
+//         req.body.surgicalManage,
+//         visit_unique
+//     ];
+
+//     const updateInvestigateSql = `UPDATE investigation SET 
+//         \`fbc_wbc\` = ?, 
+//         \`fbc_hb\` = ?, 
+//         \`fbc_pt\` = ?, 
+//         \`ufr_wc\` = ?, 
+//         \`ufr_rc\` = ?, 
+//         \`ufr_protein\` = ?, 
+//         \`se_k\` = ?, 
+//         \`se_na\` = ?, 
+//         \`crp\` = ?, 
+//         \`fbs\` = ?, 
+//         \`ppbs_ab\` = ?, 
+//         \`ppbs_al\` = ?, 
+//         \`ppbs_ad\` = ?, 
+//         \`lft_alt\` = ?, 
+//         \`lft_ast\` = ?, 
+//         \`invest_other\` = ?, 
+//         \`scan_mri\` = ?, 
+//         \`scan_ct\` = ?, 
+//         \`uss_tas\` = ?, 
+//         \`uss_tus\` = ? 
+//         WHERE \`visit_id\` = ?`;
+
+//     const updateInvestValues = [
+//         req.body.visit_id,
+//         req.body.wbc,
+//         req.body.hb,
+//         req.body.plate,
+//         req.body.whiteCell,
+//         req.body.redCell,
+//         req.body.protein,
+//         req.body.seK,
+//         req.body.seNa,
+//         req.body.crp,
+//         req.body.fbs,
+//         req.body.ppbsAB,
+//         req.body.ppbsAL,
+//         req.body.ppbsAD,
+//         req.body.lftALT,
+//         req.body.lftAST,
+//         req.body.lftOther,
+//         req.body.mri,
+//         req.body.ct,
+//         req.body.tas,
+//         req.body.tus,
+//         visit_unique
+//     ];
+
+//     db.beginTransaction((err) => {
+//         if (err) {
+//             console.error("Transaction initialization failed:", err);
+//             res.status(500).send('Transaction initialization failed');
+//             return;
+//         }
+//         console.log(visit_unique);
+
+
+//         db.query(updateTreatSql, updateTreatValues, (err, result) => {
+//             if (err) {
+//                 console.log(visit_unique);
+
+//                 return db.rollback(() => {
+//                     console.error("Error updating treatment information:", err);
+//                     res.status(500).send('Error updating treatment information');
+//                 });
+//             }
+
+//             db.query(updateInvestigateSql, updateInvestValues, (err, result) => {
+//                 if (err) {
+//                     return db.rollback(() => {
+//                         console.error("Error updating investigation information:", err);
+//                         res.status(500).send('Error updating investigation information');
+//                     });
+//                 }
+
+//                 // db.commit((err) => {
+//                 //     if (err) {
+//                 //         return db.rollback(() => {
+//                 //             console.error("Transaction commit failed:", err);
+//                 //             res.status(500).send('Transaction commit failed');
+//                 //         });
+//                 //     }
+//                 //     // res.send('Visit information updated successfully');
+//                 // });
+//             });
+//         });
+//     });
+// });
