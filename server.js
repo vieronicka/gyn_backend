@@ -6,6 +6,7 @@ import session from "express-session";
 import bcrypt from "bcryptjs";
 import keys from './Config/keys.js';
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 
 const app = express();
 
@@ -31,7 +32,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gynaecology"
+    database:"gynecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -109,25 +110,6 @@ app.post('/reg', (req, res) => {
                 req.body.ward,
                 req.body.consultant,
                 req.body.add_count
-                // req.body.allergy,
-                // // req.body.past_obs,
-                // req.body.past_med.join(', '),
-                // req.body.past_med_other,
-                // req.body.past_surg.join(', '),
-                // req.body.past_surg_other,
-                // req.body.hx_diseases,
-                // req.body.hx_cancer.join(', '),
-                // req.body.hx_cancer_other,
-                // req.body.diagnosis, 
-                // req.body.height,
-                // req.body.weight,
-                // // req.body.past_hist,
-                // // req.body.complaint,
-                // req.body.menarche_age,
-                // req.body.menopausal_age,
-                // req.body.lmp,
-                // req.body.menstrual_cycle          
-                // req.body.other
             ];
 
             db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
@@ -205,6 +187,7 @@ app.post('/staff_reg', async (req, res) => {
 app.post('/login',  (req, res) => {
     const { email, password } = req.body;
     const sql = "SELECT * FROM staff WHERE email = ?";
+    // console.log(req.body);
     db.query(sql, [email],  (err, results) => {
       if (err) {
         return res.status(500).send('Server error');
@@ -218,11 +201,12 @@ app.post('/login',  (req, res) => {
       if (!isMatch) {
         return res.status(400).send('Invalid credentials');
       }else{
-        const payload = { id: user.id, full_name: user.full_name };
+        const payload = { id: user.id, full_name: user.full_name,  role: user.role};
         jwt.sign(payload, keys.secretOrKey, { expiresIn: 3600 }, (err, token) => {
           res.json({
             success: true,
             token: 'Bearer ' + token,
+            role: user.role,
           });
         });
     }  
@@ -232,22 +216,31 @@ app.post('/login',  (req, res) => {
   app.put('/staff_update/:id', async (req, res) => {
     const id = req.params.id;
     const { full_name, phone_no, role, email, password, status } = req.body; 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    req.body.password = hashedPassword;
-   
-    
-    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
-    db.query(sql, [full_name, phone_no, role, email, hashedPassword, status, id], (err, result) => {
-      if (err) {
-        console.error('Error updating row:', err);
-        return res.status(500).send('Error updating row');
-        }
-        res.send('Row updated successfully');        
-    });
-  });
 
-app.get('/details', (req, res) => {//ethuku iruku
-    db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marital_status, nic,  FROM patient', (err, results) => {
+    let sql, params;
+    if (password) {
+        // If a new password is provided, hash it
+        const hashedPassword = await bcrypt.hash(password, 10);
+        sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
+        params = [full_name, phone_no, role, email, hashedPassword, status, id];
+    } else {
+        // If no new password is provided, do not update the password field
+        sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, status = ? WHERE id = ?';
+        params = [full_name, phone_no, role, email, status, id];
+    }
+
+    db.query(sql, params, (err, result) => {
+        if (err) {
+            console.error('Error updating row:', err);
+            return res.status(500).send('Error updating row');
+        }
+        res.send('Row updated successfully');
+    });
+});
+  
+
+app.get('/details', (req, res) => {
+    db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
         } else {
@@ -266,7 +259,7 @@ app.get('/data', (req, res) => {
             res.status(500).send('Error retrieving data from database');
         } else {
             res.json(results);
-        }
+     }
     });
 });
 
@@ -301,7 +294,6 @@ app.get('/view/:id',(req,res) =>{
         } else {
             res.json(result);
         }
-       
     })
 })
 
@@ -314,7 +306,6 @@ app.get('/about/:id',(req,res) =>{
         } else {
             res.json(result);
         }
-       
     })
 })
 
@@ -327,7 +318,6 @@ app.get('/patientda/:id',(req,res) =>{
         } else {
             res.json(result);
         }
-       
     })
 })
 
@@ -417,6 +407,7 @@ app.delete('/staff_information/:id', (req, res) => {
     });
   });
 
+
   app.post('/searchdata', (req, res) => {
     const { val } = req.body;
     const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
@@ -454,51 +445,17 @@ app.delete('/staff_information/:id', (req, res) => {
     }
 });
 
-app.get('/logout',(req,res)=>{
-    //navigate('/');
-    // req.session.user = null;
-    // req.session.destroy();
-    // return res.json("success")
-})
 app.listen(8081,() =>{
     console.log("Running...");
 })
 
-// Route to retrieve admitted and discharged patient counts
-// app.get('/api/patient-counts', (req, res) => {
-//     const query = `
-//       SELECT 
-//         SUM(CASE WHEN status = 'admit' THEN 1 ELSE 0 END) AS admittedCount,
-//         SUM(CASE WHEN status = 'discharged' THEN 1 ELSE 0 END) AS dischargedCount
-//       FROM admission;
-//     `;
-  
-//     db.query(query, (err, results) => {
-//       if (err) {
-//         console.error('Database query failed:', err);
-//         return res.status(500).json({ error: 'Database query failed' });
-//       }
-//       console.log('Query Results:', results);
-//       console.log("Inserting into admission:", {
-//         date: req.body.date,
-//         phn: req.body.phn,
-//         bht: req.body.bht,
-//         ward_no: req.body.ward,
-//         consultant: req.body.consultant,
-//         // status: req.body.status // Check this line
-//       });
-      
-//       res.json(results[0]);
-//     });
-// });
-
 app.post('/treat', (req, res) => {
-    // Insert data into the 'patient' table
-    const treatSql = "INSERT INTO treatment (`date`,`phn`,`visit_id`,`visit_count`,`seen_by`,`complaints`,`abnormal_bleeding`,`complaint_other`,`exam_bpa`,`exam_bpb`,`exam_pulse`,`exam_abdominal`,`exam_gynaecology`,`manage_minor_eua`,`manage_minor_eb`,`manage_major`,`manage_medical`,`manage_surgical`,`diagnosis`) VALUES (?)";
+    const treatSql = "INSERT INTO treatment (`date`,`visit_id`,`admission_id`,`visit_count`,`seen_by`,`complaints`,`abnormal_bleeding`,`complaint_other`,`exam_bpa`,`exam_bpb`,`exam_pulse`,`exam_abdominal`,`exam_gynaecology`,`manage_minor_eua`,`manage_minor_eb`,`manage_major`,`manage_medical`,`manage_surgical`) VALUES (?)";
     const treatValues = [
         req.body.date,
-        req.body.phn,
+        // req.body.phn,
         req.body.visit_id,
+        req.body.admission_id,
         req.body.visit_no,
         req.body.seenBy,
         req.body.complaints.join(', '),
@@ -513,11 +470,17 @@ app.post('/treat', (req, res) => {
         req.body.minorEb,
         req.body.major.join(', '),
         req.body.medicalManage,
-        req.body.surgicalManage
+        req.body.surgicalManage,
+        // req.body.diagnosis
     ];
 
     db.query(treatSql, [treatValues], (treatErr, treatResult) => {
-        if (treatErr) {        
+        if (treatErr) {   
+            console.log(treatSql);   
+            console.log(treatValues);  
+            console.error("Error inserting data into 'treatment' table:", treatErr);
+            console.error("Error inserting data into 'investigation' table:", investErr);
+
             return res.status(500).json({ error: "Error inserting data into 'treatment' table", details: treatErr });
         }
             // Insert data into the 'admission' table
@@ -545,11 +508,15 @@ app.post('/treat', (req, res) => {
                 req.body.tas,
                 req.body.tus
             ];
+            
 
             db.query(investigateSql, [investValues], (investErr, investResult) => {
                 if (investErr) {
                     console.error("Error inserting data into 'investigation' table:", investErr);
-                    return res.status(500).json({ error: "Error inserting data into 'investigation' table", details: admissionErr });
+                    return res.status(500).json({ 
+                        error: "Error inserting data into 'treatment' table", 
+                        details: treatErr.sqlMessage || treatErr.message 
+                    });
                 }
                 return res.status(200).json({ treatResult, investResult});
             });
@@ -706,3 +673,458 @@ app.get('/admissions/:phn', (req, res) => {
     });
 });
 
+app.get('/stats', (req, res) => {
+    const dischargedSql = "SELECT COUNT(*) AS discharged_count FROM admission WHERE status = 'discharged'";
+    const admittedSql = "SELECT COUNT(*) AS admitted_count FROM admission WHERE status = 'admit'";
+    const total_patientsSql = "SELECT COUNT(*) AS total_patients FROM patient";
+    const admissionSql = "SELECT COUNT(*) AS admission_count FROM admission WHERE DATE(date) >= CURDATE() - INTERVAL 30 DAY";
+
+    // Query to get discharged count
+    db.query(dischargedSql, (err, dischargedResults) => {
+        if (err) {
+            return res.status(500).json({ error: 'Error retrieving discharged count' });
+        }
+
+        // Query to get admitted count (active patients)
+        db.query(admittedSql, (err, admittedResults) => {
+            if (err) {
+                return res.status(500).json({ error: 'Error retrieving admitted count' });
+            }
+
+            db.query(total_patientsSql,(err,patientResults)=>{
+                if(err){
+                    return res.status(500).json({error:"Error retriveing Total patients_count"});
+               }
+               
+               db.query(admissionSql, (err, admissionResults) => {
+                if (err) {
+                    return res.status(500).json({ error: 'Error retrieving admission count' });
+                }
+                        const discharged_count = dischargedResults[0].discharged_count;
+                        const admitted_count = admittedResults[0].admitted_count;
+                        const total_patients = patientResults[0].total_patients;
+                        const admissionCount = admissionResults[0].admission_count;
+                        
+                        const admissionRate = ((admissionCount / total_patients) * 100).toFixed(2);
+
+                        const stats = {
+                            total_patients: total_patients, 
+                            active_patients: admitted_count, 
+                            discharged_patients: discharged_count, 
+                            admission_rate: `${admissionRate}%`
+                        };
+                        res.json(stats);
+                    });
+                });
+            });
+        });
+    });
+
+    const OTP_EXPIRATION = 300000; // 5 minutes in milliseconds
+    const transporter = nodemailer.createTransport({
+      service: 'Gmail', // or your email provider
+      auth: {
+        user: 'gyntngv@gmail.com', // replace with your email
+        pass: 'dbqu luio zpho ktrb' // replace with your email password
+      }
+    });
+
+    app.post('/forgotpassword', (req, res) => {
+        const { email } = req.body; // Make sure email is being received correctly from the request
+    
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required' });
+        }
+    
+        const otp = Math.floor(100000 + Math.random() * 900000); // Generate a 6-digit OTP
+        const expiresAt = Math.floor(Date.now() / 1000) + Math.floor(OTP_EXPIRATION / 1000);
+    
+        const query = "UPDATE staff SET otp = ?, otp_expires = FROM_UNIXTIME(?) WHERE email = ?";
+        db.query(query, [otp, expiresAt, email], (err, result) => {
+            if (err) {
+                return res.status(500).json({ message: 'Server error' });
+            }
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'Email not found' });
+            }
+            const mailOptions = {
+                from: 'gyntngv@gmail.com',
+                to: email, // Email is now defined in this scope
+                subject: 'Your OTP Code',
+                text: `Your OTP code is ${otp}`
+            };
+            
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    return res.status(500).json({ message: 'Error sending email' });
+                }
+                
+                // Log `info` only if there’s no error
+                res.status(200).json({ message: 'OTP sent successfully' });
+            });
+            
+        });
+        console.log(otp);
+        console.log(email);
+        // console.log(error);
+
+
+    });
+    
+    
+
+// Endpoint to verify OTP
+app.post('/verifyotp', (req, res) => {
+    const { email, otp } = req.body;
+    const query = "SELECT otp, UNIX_TIMESTAMP(otp_expires) AS otp_expires FROM staff WHERE email = ?";
+    db.query(query, [email], (err, results) => {
+      if (err || results.length === 0) {
+        console.log("Database error or user not found");
+        return res.status(500).json({ message: 'User not found' });
+      }
+  
+      const user = results[0];
+      const otpExpiresInMs = user.otp_expires * 1000; 
+  
+      if (parseInt(user.otp) !== parseInt(otp)) {
+        return res.status(400).json({ message: 'Incorrect OTP' });
+      }
+  
+      if (Date.now() > otpExpiresInMs) {
+        return res.status(400).json({ message: 'Expired OTP' });
+      }
+  
+      res.json({ message: 'OTP verified' });
+    });
+  });
+  
+  
+
+
+// Endpoint to reset password
+app.post('/resetpassword', async (req, res) => {
+  const { email, newPassword } = req.body;
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  const query = "UPDATE staff SET password = ?, otp = NULL, otp_expires = NULL WHERE email = ?";
+  db.query(query, [hashedPassword, email], (err, result) => {
+    if (err) return res.status(500).json({ message: 'Error resetting password' });
+    res.json({ message: 'Password reset successful. Please log in.' });
+  });
+});
+
+
+// app.get('/api/count', (req, res) => {
+//     const query = 'SELECT COUNT(*) AS patientCount FROM patient';
+//     db.query(query, (err, result) => {
+//       if (err) throw err;
+      
+//       console.log(result); // Log the result to the console
+//       res.json(result[0]); // Send the count as a response
+//     });
+//   });
+
+app.get('/require_visit_count/:visit_un', (req, res) => {
+    const visitUn = req.params.visit_un;
+    const sql = "SELECT COUNT(*) AS visit_count FROM treatment WHERE visit_id LIKE ?";
+    const visitPattern = `${visitUn}%`;
+
+    db.query(sql, [visitPattern], (err, result) => {
+        if (err) {
+            console.error("Error fetching visit count:", err);
+            return res.status(500).json({ error: "Error fetching visit count", details: err });
+        }
+        // Access the count from the result
+        const visitCount = result[0].visit_count;
+        return res.status(200).json({ visit_count: visitCount });
+    });
+});
+
+app.get('/visits/:visit_un', (req, res) => {
+    const visitUn = req.params.visit_un;
+    const sql = "SELECT * FROM treatment WHERE visit_id LIKE ?";
+    const visitPattern = `${visitUn}%`;
+    
+    db.query(sql, [visitPattern], (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: 'Error retrieving admissions' });
+        }
+        res.json(results); // Assuming results is an array of admissions
+    });
+});
+
+app.get('/visitdetail/:visit_unique', (req, res) => {
+    const visit_unique = parseInt(req.params.visit_unique, 10);
+
+    // console.log("before");
+
+    const sql = `
+        SELECT *
+        FROM treatment
+        JOIN investigation ON treatment.visit_id = investigation.visit_id
+        WHERE treatment.visit_id = ?;
+    `;
+
+    db.query(sql, [visit_unique], (err, results) => {
+        // console.log("after");
+        if (err) {
+            console.error("Error fetching data:", err);
+            return res.status(500).json({ error: "Error fetching data from the database", details: err.message });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: "No data found for the specified PHN" });
+        }
+
+        res.status(200).json(results); // Returns all matching records
+    });
+});
+
+app.put('/visitUpdate/:visit_unique', (req, res) => {
+    const visit_unique = parseInt(req.params.visit_unique, 10);
+    const {
+        date,
+        // req.body.phn,
+        visit_id,
+        admission_id,
+        visit_no,
+        seenBy,
+        complaints=[],
+        abnormalUlerine=[],
+        otherComplaint,
+        bpa,
+        bpb,
+        pr,
+        abdominalExam,
+        gynaecologyExam,
+        minorEua,
+        minorEb,
+        major=[],
+        medicalManage,
+        surgicalManage,
+    } = req.body;
+
+    const formattedPastMed = complaints.filter(Boolean).join(', ');
+    const formattedPastSurg = abnormalUlerine.filter(Boolean).join(', ');
+    const formattedHxCancer = major.filter(Boolean).join(', ');
+
+    const updateTreatSql = "UPDATE treatment SET `date` = ?,`seen_by` = ?,`complaints` = ?,`abnormal_bleeding` = ?,`complaint_other` = ?,`exam_bpa` = ?,`exam_bpb` = ?,`exam_pulse` = ?,`exam_abdominal` = ?,`exam_gynaecology` = ?,`manage_minor_eua` = ?,`manage_minor_eb` = ?,`manage_major` = ?,`manage_medical` = ?,`manage_surgical` = ? where `visit_id` = ?";
+    const updateTreatValues = [
+        date,
+        seenBy,
+        formattedPastMed,
+        formattedPastSurg,
+        otherComplaint,
+        bpa,
+        bpb,
+        pr,
+        abdominalExam,
+        gynaecologyExam,
+        minorEua,
+        minorEb,
+        formattedHxCancer,
+        medicalManage,
+        surgicalManage,
+        visit_unique
+    ];
+
+    db.query(updateTreatSql, updateTreatValues, (err,result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).send({ message: "Error updating treatment" });
+            }
+            //res.send({ message: "Treatment updated successfully" });
+        });
+
+    const updateInvestigateSql = "UPDATE investigation SET `fbc_wbc` = ?, `fbc_hb` = ?, `fbc_pt` = ?, `ufr_wc` = ?, `ufr_rc` = ?, `ufr_protein` = ?, `se_k` = ?, `se_na` = ?, `crp` = ?, `fbs` = ?, `ppbs_ab` = ?, `ppbs_al` = ?, `ppbs_ad` = ?, `lft_alt` = ?, `lft_ast` = ?, `invest_other` = ?, `scan_mri` = ?, `scan_ct` = ?, `uss_tas` = ?, `uss_tus` = ? where `visit_id` = ?";
+    const updateInvestValues = [
+        req.body.wbc,
+        req.body.hb,
+        req.body.plate,
+        req.body.whiteCell,
+        req.body.redCell,
+        req.body.protein,
+        req.body.seK,
+        req.body.seNa,
+        req.body.crp,
+        req.body.fbs,
+        req.body.ppbsAB,
+        req.body.ppbsAL,
+        req.body.ppbsAD,
+        req.body.lftALT,
+        req.body.lftAST,
+        req.body.lftOther,
+        req.body.mri,
+        req.body.ct,
+        req.body.tas,
+        req.body.tus,
+        visit_unique
+    ];
+
+    db.query(updateInvestigateSql, updateInvestValues, (err, result) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).send({ message: "Error updating investigation" });
+            //res.status(500).send('Error updating visit information');
+        } else {
+            res.send('visit information updated successfully');
+        }
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// app.put('/visitUpdate/:visit_unique', (req, res) => {
+//     const visit_unique = (req.params.visit_unique);
+//     // const visit_id = req.body.visit_id; // Ensure visit_id is provided
+//     // if (!visit_id) {
+//     //     return res.status(400).json({ error: "visit_id is required." });
+//     // }
+
+//     const updateTreatSql = `UPDATE treatment SET 
+//         \`date\` = ?,  
+//         \`admission_id\` = ?, 
+//         \`visit_count\` = ?, 
+//         \`seen_by\` = ?, 
+//         \`complaints\` = ?, 
+//         \`abnormal_bleeding\` = ?, 
+//         \`complaint_other\` = ?, 
+//         \`exam_bpa\` = ?, 
+//         \`exam_bpb\` = ?, 
+//         \`exam_pulse\` = ?, 
+//         \`exam_abdominal\` = ?, 
+//         \`exam_gynaecology\` = ?, 
+//         \`manage_minor_eua\` = ?, 
+//         \`manage_minor_eb\` = ?, 
+//         \`manage_major\` = ?, 
+//         \`manage_medical\` = ?, 
+//         \`manage_surgical\` = ? 
+//         WHERE \`visit_id\` = ?`;
+
+//     const updateTreatValues = [
+//         req.body.date,
+//         req.body.visit_id,
+//         req.body.admission_id,
+//         req.body.visit_no,
+//         req.body.seenBy,
+//         req.body.complaints.join(', '),
+//         req.body.abnormalUlerine.join(', '),
+//         req.body.otherComplaint,
+//         req.body.bpa,
+//         req.body.bpb,
+//         req.body.pr,
+//         req.body.abdominalExam,
+//         req.body.gynaecologyExam,
+//         req.body.minorEua,
+//         req.body.minorEb,
+//         req.body.major.join(', '),
+//         req.body.medicalManage,
+//         req.body.surgicalManage,
+//         visit_unique
+//     ];
+
+//     const updateInvestigateSql = `UPDATE investigation SET 
+//         \`fbc_wbc\` = ?, 
+//         \`fbc_hb\` = ?, 
+//         \`fbc_pt\` = ?, 
+//         \`ufr_wc\` = ?, 
+//         \`ufr_rc\` = ?, 
+//         \`ufr_protein\` = ?, 
+//         \`se_k\` = ?, 
+//         \`se_na\` = ?, 
+//         \`crp\` = ?, 
+//         \`fbs\` = ?, 
+//         \`ppbs_ab\` = ?, 
+//         \`ppbs_al\` = ?, 
+//         \`ppbs_ad\` = ?, 
+//         \`lft_alt\` = ?, 
+//         \`lft_ast\` = ?, 
+//         \`invest_other\` = ?, 
+//         \`scan_mri\` = ?, 
+//         \`scan_ct\` = ?, 
+//         \`uss_tas\` = ?, 
+//         \`uss_tus\` = ? 
+//         WHERE \`visit_id\` = ?`;
+
+//     const updateInvestValues = [
+//         req.body.visit_id,
+//         req.body.wbc,
+//         req.body.hb,
+//         req.body.plate,
+//         req.body.whiteCell,
+//         req.body.redCell,
+//         req.body.protein,
+//         req.body.seK,
+//         req.body.seNa,
+//         req.body.crp,
+//         req.body.fbs,
+//         req.body.ppbsAB,
+//         req.body.ppbsAL,
+//         req.body.ppbsAD,
+//         req.body.lftALT,
+//         req.body.lftAST,
+//         req.body.lftOther,
+//         req.body.mri,
+//         req.body.ct,
+//         req.body.tas,
+//         req.body.tus,
+//         visit_unique
+//     ];
+
+//     db.beginTransaction((err) => {
+//         if (err) {
+//             console.error("Transaction initialization failed:", err);
+//             res.status(500).send('Transaction initialization failed');
+//             return;
+//         }
+//         console.log(visit_unique);
+
+
+//         db.query(updateTreatSql, updateTreatValues, (err, result) => {
+//             if (err) {
+//                 console.log(visit_unique);
+
+//                 return db.rollback(() => {
+//                     console.error("Error updating treatment information:", err);
+//                     res.status(500).send('Error updating treatment information');
+//                 });
+//             }
+
+//             db.query(updateInvestigateSql, updateInvestValues, (err, result) => {
+//                 if (err) {
+//                     return db.rollback(() => {
+//                         console.error("Error updating investigation information:", err);
+//                         res.status(500).send('Error updating investigation information');
+//                     });
+//                 }
+
+//                 // db.commit((err) => {
+//                 //     if (err) {
+//                 //         return db.rollback(() => {
+//                 //             console.error("Transaction commit failed:", err);
+//                 //             res.status(500).send('Transaction commit failed');
+//                 //         });
+//                 //     }
+//                 //     // res.send('Visit information updated successfully');
+//                 // });
+//             });
+//         });
+//     });
+// });
