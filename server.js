@@ -32,7 +32,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gynecology"
+    database:"gynaecology"
 })
 
 app.post('/reg', (req, res) => {
