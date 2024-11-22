@@ -264,26 +264,43 @@ app.get('/data', (req, res) => {
 });
 
 app.get('/admitdata', (req, res) => {
-    const limit = req.query.limit || 8; // Default limit to 10 if not specified in the query string
-    db.query('SELECT * FROM patient INNER JOIN admission ON patient.phn = admission.phn WHERE admission.status = "admit" LIMIT ?', [limit], (err, results) => {
-        if (err) {
-            res.status(500).send('Error retrieving data from database');
-        } else {
-            res.json(results);
+    const limit = parseInt(req.query.limit) || 8; // Default limit to 8 if not specified
+    const page = parseInt(req.query.page) || 1; // Default to page 1 if not specified
+    const offset = (page - 1) * limit; // Calculate offset
+
+    db.query(
+        'SELECT * FROM patient INNER JOIN admission ON patient.phn = admission.phn WHERE admission.status = "admit" LIMIT ? OFFSET ?',
+        [limit, offset],
+        (err, results) => {
+            if (err) {
+                console.error('Error retrieving admitted data:', err);
+                res.status(500).send('Error retrieving admitted data from database');
+            } else {
+                res.json(results);
+            }
         }
-    });
+    );
 });
 
 app.get('/dischargedata', (req, res) => {
-    const limit = req.query.limit || 8; // Default limit to 10 if not specified in the query string
-    db.query('SELECT * FROM patient INNER JOIN admission ON patient.phn = admission.phn WHERE admission.status = "discharged" LIMIT ?', [limit], (err, results) => {
-        if (err) {
-            res.status(500).send('Error retrieving data from database');
-        } else {
-            res.json(results);
+    const limit = parseInt(req.query.limit) || 1; // Default limit to 8 if not specified
+    const page = parseInt(req.query.page) || 1; // Default to page 1 if not specified
+    const offset = (page - 1) * limit; // Calculate offset
+
+    db.query(
+        'SELECT * FROM patient INNER JOIN admission ON patient.phn = admission.phn WHERE admission.status = "discharged" LIMIT ? OFFSET ?',
+        [limit, offset],
+        (err, results) => {
+            if (err) {
+                console.error('Error retrieving discharged data:', err);
+                res.status(500).send('Error retrieving discharged data from database');
+            } else {
+                res.json(results);
+            }
         }
-    });
+    );
 });
+
 
 app.get('/view/:id',(req,res) =>{
     const sql ="SELECT * , FLOOR(DATEDIFF(CURRENT_DATE(), dob) / 365) AS age FROM  patient WHERE id = ?";
@@ -484,7 +501,7 @@ app.post('/treat', (req, res) => {
             return res.status(500).json({ error: "Error inserting data into 'treatment' table", details: treatErr });
         }
             // Insert data into the 'admission' table
-            const investigateSql = "INSERT INTO investigation (`visit_id`,`fbc_wbc`,`fbc_hb`,`fbc_pt`,`ufr_wc`,`ufr_rc`,`ufr_protein`,`se_k`,`se_na`,`crp`,`fbs`,`ppbs_ab`,`ppbs_al`,`ppbs_ad`,`lft_alt`,`lft_ast`,`invest_other`,`scan_mri`,`scan_ct`,`uss_tas`,`uss_tus`) VALUES (?)";
+            const investigateSql = "INSERT INTO investigation (`visit_id`,`fbc_wbc`,`fbc_hb`,`fbc_pt`,`ufr_wc`,`ufr_rc`,`ufr_protein`,`se_k`,`se_na`,`crp`,`fbs`,`ppbs_ab`,`ppbs_al`,`ppbs_ad`,`lft_alt`,`lft_ast`,`invest_other`,`scan_types`,`scan_mri`,`scan_ct`,`uss_tas`,`uss_tus`) VALUES (?)";
             const investValues = [
                 req.body.visit_id,
                 req.body.wbc,
@@ -503,6 +520,7 @@ app.post('/treat', (req, res) => {
                 req.body.lftALT,
                 req.body.lftAST,
                 req.body.lftOther,
+                req.body.scan_types.join(', '),
                 req.body.mri,
                 req.body.ct,
                 req.body.tas,
@@ -771,8 +789,6 @@ app.get('/stats', (req, res) => {
 
     });
     
-    
-
 // Endpoint to verify OTP
 app.post('/verifyotp', (req, res) => {
     const { email, otp } = req.body;
@@ -799,8 +815,6 @@ app.post('/verifyotp', (req, res) => {
   });
   
   
-
-
 // Endpoint to reset password
 app.post('/resetpassword', async (req, res) => {
   const { email, newPassword } = req.body;
@@ -812,17 +826,6 @@ app.post('/resetpassword', async (req, res) => {
     res.json({ message: 'Password reset successful. Please log in.' });
   });
 });
-
-
-// app.get('/api/count', (req, res) => {
-//     const query = 'SELECT COUNT(*) AS patientCount FROM patient';
-//     db.query(query, (err, result) => {
-//       if (err) throw err;
-      
-//       console.log(result); // Log the result to the console
-//       res.json(result[0]); // Send the count as a response
-//     });
-//   });
 
 app.get('/require_visit_count/:visit_un', (req, res) => {
     const visitUn = req.params.visit_un;
@@ -854,9 +857,7 @@ app.get('/visits/:visit_un', (req, res) => {
 });
 
 app.get('/visitdetail/:visit_unique', (req, res) => {
-    const visit_unique = parseInt(req.params.visit_unique, 10);
-
-    // console.log("before");
+    const visit_unique = req.params.visit_unique;
 
     const sql = `
         SELECT *
@@ -881,13 +882,9 @@ app.get('/visitdetail/:visit_unique', (req, res) => {
 });
 
 app.put('/visitUpdate/:visit_unique', (req, res) => {
-    const visit_unique = parseInt(req.params.visit_unique, 10);
+    const visit_unique = req.params.visit_unique;
     const {
         date,
-        // req.body.phn,
-        visit_id,
-        admission_id,
-        visit_no,
         seenBy,
         complaints=[],
         abnormalUlerine=[],
@@ -902,11 +899,33 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
         major=[],
         medicalManage,
         surgicalManage,
+        wbc,
+        hb,
+        plate,
+        whiteCell,
+        redCell,
+        protein,
+        seK,
+        seNa,
+        crp,
+        fbs,
+        ppbsAB,
+        ppbsAL,
+        ppbsAD,
+        lftALT,
+        lftAST,
+        lftOther,
+        scan_types=[],
+        mri,
+        ct,
+        tas,
+        tus,
     } = req.body;
 
     const formattedPastMed = complaints.filter(Boolean).join(', ');
     const formattedPastSurg = abnormalUlerine.filter(Boolean).join(', ');
     const formattedHxCancer = major.filter(Boolean).join(', ');
+    const formattedScan = scan_types.filter(Boolean).join(', ');
 
     const updateTreatSql = "UPDATE treatment SET `date` = ?,`seen_by` = ?,`complaints` = ?,`abnormal_bleeding` = ?,`complaint_other` = ?,`exam_bpa` = ?,`exam_bpb` = ?,`exam_pulse` = ?,`exam_abdominal` = ?,`exam_gynaecology` = ?,`manage_minor_eua` = ?,`manage_minor_eb` = ?,`manage_major` = ?,`manage_medical` = ?,`manage_surgical` = ? where `visit_id` = ?";
     const updateTreatValues = [
@@ -925,7 +944,7 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
         formattedHxCancer,
         medicalManage,
         surgicalManage,
-        visit_unique
+        visit_unique,
     ];
 
     db.query(updateTreatSql, updateTreatValues, (err,result) => {
@@ -933,31 +952,31 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
                 console.error(err);
                 return res.status(500).send({ message: "Error updating treatment" });
             }
-            //res.send({ message: "Treatment updated successfully" });
         });
 
-    const updateInvestigateSql = "UPDATE investigation SET `fbc_wbc` = ?, `fbc_hb` = ?, `fbc_pt` = ?, `ufr_wc` = ?, `ufr_rc` = ?, `ufr_protein` = ?, `se_k` = ?, `se_na` = ?, `crp` = ?, `fbs` = ?, `ppbs_ab` = ?, `ppbs_al` = ?, `ppbs_ad` = ?, `lft_alt` = ?, `lft_ast` = ?, `invest_other` = ?, `scan_mri` = ?, `scan_ct` = ?, `uss_tas` = ?, `uss_tus` = ? where `visit_id` = ?";
+    const updateInvestigateSql = "UPDATE investigation SET `fbc_wbc` = ?, `fbc_hb` = ?, `fbc_pt` = ?, `ufr_wc` = ?, `ufr_rc` = ?, `ufr_protein` = ?, `se_k` = ?, `se_na` = ?, `crp` = ?, `fbs` = ?, `ppbs_ab` = ?, `ppbs_al` = ?, `ppbs_ad` = ?, `lft_alt` = ?, `lft_ast` = ?, `invest_other` = ?, `scan_types` = ?, `scan_mri` = ?, `scan_ct` = ?, `uss_tas` = ?, `uss_tus` = ? where `visit_id` = ?";
     const updateInvestValues = [
-        req.body.wbc,
-        req.body.hb,
-        req.body.plate,
-        req.body.whiteCell,
-        req.body.redCell,
-        req.body.protein,
-        req.body.seK,
-        req.body.seNa,
-        req.body.crp,
-        req.body.fbs,
-        req.body.ppbsAB,
-        req.body.ppbsAL,
-        req.body.ppbsAD,
-        req.body.lftALT,
-        req.body.lftAST,
-        req.body.lftOther,
-        req.body.mri,
-        req.body.ct,
-        req.body.tas,
-        req.body.tus,
+        wbc,
+        hb,
+        plate,
+        whiteCell,
+        redCell,
+        protein,
+        seK,
+        seNa,
+        crp,
+        fbs,
+        ppbsAB,
+        ppbsAL,
+        ppbsAD,
+        lftALT,
+        lftAST,
+        lftOther,
+        formattedScan,
+        mri,
+        ct,
+        tas,
+        tus,
         visit_unique
     ];
 
@@ -965,166 +984,9 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
         if (err) {
             console.error(err);
             return res.status(500).send({ message: "Error updating investigation" });
-            //res.status(500).send('Error updating visit information');
         } else {
             res.send('visit information updated successfully');
         }
     });
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// app.put('/visitUpdate/:visit_unique', (req, res) => {
-//     const visit_unique = (req.params.visit_unique);
-//     // const visit_id = req.body.visit_id; // Ensure visit_id is provided
-//     // if (!visit_id) {
-//     //     return res.status(400).json({ error: "visit_id is required." });
-//     // }
-
-//     const updateTreatSql = `UPDATE treatment SET 
-//         \`date\` = ?,  
-//         \`admission_id\` = ?, 
-//         \`visit_count\` = ?, 
-//         \`seen_by\` = ?, 
-//         \`complaints\` = ?, 
-//         \`abnormal_bleeding\` = ?, 
-//         \`complaint_other\` = ?, 
-//         \`exam_bpa\` = ?, 
-//         \`exam_bpb\` = ?, 
-//         \`exam_pulse\` = ?, 
-//         \`exam_abdominal\` = ?, 
-//         \`exam_gynaecology\` = ?, 
-//         \`manage_minor_eua\` = ?, 
-//         \`manage_minor_eb\` = ?, 
-//         \`manage_major\` = ?, 
-//         \`manage_medical\` = ?, 
-//         \`manage_surgical\` = ? 
-//         WHERE \`visit_id\` = ?`;
-
-//     const updateTreatValues = [
-//         req.body.date,
-//         req.body.visit_id,
-//         req.body.admission_id,
-//         req.body.visit_no,
-//         req.body.seenBy,
-//         req.body.complaints.join(', '),
-//         req.body.abnormalUlerine.join(', '),
-//         req.body.otherComplaint,
-//         req.body.bpa,
-//         req.body.bpb,
-//         req.body.pr,
-//         req.body.abdominalExam,
-//         req.body.gynaecologyExam,
-//         req.body.minorEua,
-//         req.body.minorEb,
-//         req.body.major.join(', '),
-//         req.body.medicalManage,
-//         req.body.surgicalManage,
-//         visit_unique
-//     ];
-
-//     const updateInvestigateSql = `UPDATE investigation SET 
-//         \`fbc_wbc\` = ?, 
-//         \`fbc_hb\` = ?, 
-//         \`fbc_pt\` = ?, 
-//         \`ufr_wc\` = ?, 
-//         \`ufr_rc\` = ?, 
-//         \`ufr_protein\` = ?, 
-//         \`se_k\` = ?, 
-//         \`se_na\` = ?, 
-//         \`crp\` = ?, 
-//         \`fbs\` = ?, 
-//         \`ppbs_ab\` = ?, 
-//         \`ppbs_al\` = ?, 
-//         \`ppbs_ad\` = ?, 
-//         \`lft_alt\` = ?, 
-//         \`lft_ast\` = ?, 
-//         \`invest_other\` = ?, 
-//         \`scan_mri\` = ?, 
-//         \`scan_ct\` = ?, 
-//         \`uss_tas\` = ?, 
-//         \`uss_tus\` = ? 
-//         WHERE \`visit_id\` = ?`;
-
-//     const updateInvestValues = [
-//         req.body.visit_id,
-//         req.body.wbc,
-//         req.body.hb,
-//         req.body.plate,
-//         req.body.whiteCell,
-//         req.body.redCell,
-//         req.body.protein,
-//         req.body.seK,
-//         req.body.seNa,
-//         req.body.crp,
-//         req.body.fbs,
-//         req.body.ppbsAB,
-//         req.body.ppbsAL,
-//         req.body.ppbsAD,
-//         req.body.lftALT,
-//         req.body.lftAST,
-//         req.body.lftOther,
-//         req.body.mri,
-//         req.body.ct,
-//         req.body.tas,
-//         req.body.tus,
-//         visit_unique
-//     ];
-
-//     db.beginTransaction((err) => {
-//         if (err) {
-//             console.error("Transaction initialization failed:", err);
-//             res.status(500).send('Transaction initialization failed');
-//             return;
-//         }
-//         console.log(visit_unique);
-
-
-//         db.query(updateTreatSql, updateTreatValues, (err, result) => {
-//             if (err) {
-//                 console.log(visit_unique);
-
-//                 return db.rollback(() => {
-//                     console.error("Error updating treatment information:", err);
-//                     res.status(500).send('Error updating treatment information');
-//                 });
-//             }
-
-//             db.query(updateInvestigateSql, updateInvestValues, (err, result) => {
-//                 if (err) {
-//                     return db.rollback(() => {
-//                         console.error("Error updating investigation information:", err);
-//                         res.status(500).send('Error updating investigation information');
-//                     });
-//                 }
-
-//                 // db.commit((err) => {
-//                 //     if (err) {
-//                 //         return db.rollback(() => {
-//                 //             console.error("Transaction commit failed:", err);
-//                 //             res.status(500).send('Transaction commit failed');
-//                 //         });
-//                 //     }
-//                 //     // res.send('Visit information updated successfully');
-//                 // });
-//             });
-//         });
-//     });
-// });
