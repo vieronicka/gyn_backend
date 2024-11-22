@@ -7,6 +7,10 @@ import bcrypt from "bcryptjs";
 import keys from './Config/keys.js';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
+import excelJS from 'exceljs';
+import pdf from 'pdfkit';
+import fs from 'fs';
+import path from 'path'; 
 
 const app = express();
 
@@ -720,6 +724,36 @@ app.get('/stats', (req, res) => {
         });
     });
 
+    app.get('/admission-stats', (req, res) => {
+        const { view, year, month } = req.query;
+    
+        let sql;
+        if (view === 'year') {
+            sql = "SELECT YEAR(date) AS name, SUM(add_count) AS patientCount FROM admission GROUP BY YEAR(date)";
+        } else if (view === 'month' && year) {
+            sql = `SELECT MONTHNAME(date) AS name, SUM(add_count) AS patientCount 
+                   FROM admission 
+                   WHERE YEAR(date) = ? 
+                   GROUP BY MONTH(date)`;
+        } else if (view === 'day' && year && month) {
+            sql = `SELECT DAY(date) AS name, SUM(add_count) AS patientCount 
+                   FROM admission 
+                   WHERE YEAR(date) = ? AND MONTH(date) = ? 
+                   GROUP BY DAY(date)`;
+        } else {
+            return res.status(400).json({ error: 'Invalid parameters' });
+        }
+    
+        const params = [year, month].filter((p) => p); // Filter undefined parameters
+        db.query(sql, params, (err, results) => {
+            if (err) {
+                return res.status(500).json({ error: 'Error retrieving admission stats' });
+            }
+            res.json(results);
+        });
+    });
+    
+
     const OTP_EXPIRATION = 300000; // 5 minutes in milliseconds
     const transporter = nodemailer.createTransport({
       service: 'Gmail', // or your email provider
@@ -771,8 +805,189 @@ app.get('/stats', (req, res) => {
 
     });
     
+    app.get('/complaints-stats', (req, res) => {
+        const sql = "SELECT complaints FROM treatment";
     
+        db.query(sql, (err, results) => {
+            if (err) {
+                return res.status(500).json({ error: 'Error retrieving complaints data' });
+            }
+    
+            // Complaint categories
+            const complaintCategories = [
+                "Vaginal Bleeding",
+                "Dribbiling",
+                "Subtertility",
+                "Vaginal Discharge",
+                "Abdominal Pain",
+                "Back Pain",
+                "Urinary Incontenur",
+                "Blood Sugar Series"
+            ];
+    
+            // Initialize counts
+            const complaintCounts = complaintCategories.reduce((acc, category) => {
+                acc[category] = 0;
+                return acc;
+            }, {});
+    
+            // Process complaints data
+            results.forEach(row => {
+                const complaints = row.complaints.split(',').map(c => c.trim());
+                complaints.forEach(complaint => {
+                    if (complaintCounts.hasOwnProperty(complaint)) {
+                        complaintCounts[complaint]++;
+                    }
+                });
+            });
+    
+            // Format data for frontend
+            const formattedData = Object.keys(complaintCounts).map(category => ({
+                name: category,
+                value: complaintCounts[category],
+            }));
+    
+            res.json(formattedData);
+        });
+    });
 
+    app.get('/history-stats', (req, res) => {
+        const sql = "SELECT past_med FROM medical_hx";
+    
+        db.query(sql, (err, results) => {
+            if (err) {
+                return res.status(500).json({ error: 'Error retrieving complaints data' });
+            }
+    
+            // Complaint categories
+            const complaintCategories = [
+                "Diabetics mellitus",
+                "Hypertension","Hypothyroidism",
+                "Bronchial asthma","Epilepsy",
+                "Valvular heart diseases",
+                "Ishemic heart diseases",
+                "Renal diseases",
+                "Arthritis",
+                "Hypercholesterolemia"
+            ];
+    
+            // Initialize counts
+            const complaintCounts = complaintCategories.reduce((acc, category) => {
+                acc[category] = 0;
+                return acc;
+            }, {});
+    
+            // Process complaints data
+            results.forEach(row => {
+                const complaints = row.past_med.split(',').map(c => c.trim());
+                complaints.forEach(complaint => {
+                    if (complaintCounts.hasOwnProperty(complaint)) {
+                        complaintCounts[complaint]++;
+                    }
+                });
+            });
+    
+            // Format data for frontend
+            const formattedData = Object.keys(complaintCounts).map(category => ({
+                name: category,
+                value: complaintCounts[category],
+            }));
+    
+            res.json(formattedData);
+        });
+    });
+
+    
+   // API endpoint to fetch report analysis
+app.get("/report-analysis", (req, res) => {
+    const { type } = req.query;
+  
+    if (!type) {
+      return res.status(400).json({ error: "Report type is required" });
+    }
+  
+    const query = "SELECT * FROM investigation";
+  
+    db.query(query, (err, results) => {
+      if (err) {
+        return res.status(500).json({ error: "Error fetching data" });
+      }
+  
+      const response = {};
+  
+      if (type === "blood") {
+        const bloodCounts = {
+          hemoglobin: { Low: 0, Normal: 0, High: 0 },
+          platelets: { Low: 0, Normal: 0, High: 0 },
+          whiteCells: { Low: 0, Normal: 0, High: 0 },
+        };
+  
+        results.forEach((row) => {
+          // Hemoglobin
+          if (row.fbc_hb < 12) bloodCounts.hemoglobin.Low++;
+          else if (row.fbc_hb <= 16) bloodCounts.hemoglobin.Normal++;
+          else bloodCounts.hemoglobin.High++;
+  
+          // Platelets
+          if (row.fbc_pt < 150) bloodCounts.platelets.Low++;
+          else if (row.fbc_pt <= 450) bloodCounts.platelets.Normal++;
+          else bloodCounts.platelets.High++;
+  
+          // White Cells
+          if (row.fbc_wbc < 4) bloodCounts.whiteCells.Low++;
+          else if (row.fbc_wbc <= 11) bloodCounts.whiteCells.Normal++;
+          else bloodCounts.whiteCells.High++;
+        });
+  
+        response.blood = {
+          hemoglobin: Object.keys(bloodCounts.hemoglobin).map((key) => ({
+            name: key,
+            value: bloodCounts.hemoglobin[key],
+          })),
+          platelets: Object.keys(bloodCounts.platelets).map((key) => ({
+            name: key,
+            value: bloodCounts.platelets[key],
+          })),
+          whiteCells: Object.keys(bloodCounts.whiteCells).map((key) => ({
+            name: key,
+            value: bloodCounts.whiteCells[key],
+          })),
+        };
+      } else if (type === "urine") {
+        const urineCounts = {
+          whiteCells_ur: { Low: 0, Normal: 0, High: 0 },
+          redCells: { Low: 0, Normal: 0, High: 0 },
+        };
+  
+        results.forEach((row) => {
+          // Urine White Cells
+          if (row.ufr_wc < 5) urineCounts.whiteCells_ur.Low++;
+          else if (row.ufr_wc <= 10) urineCounts.whiteCells_ur.Normal++;
+          else urineCounts.whiteCells_ur.High++;
+  
+          // Urine Red Cells
+          if (row.ufr_rc < 5) urineCounts.redCells.Low++;
+          else if (row.ufr_rc <= 10) urineCounts.redCells.Normal++;
+          else urineCounts.redCells.High++;
+        });
+  
+        response.urine = {
+            whiteCells_ur: Object.keys(urineCounts.whiteCells_ur).map((key) => ({
+            name: key,
+            value: urineCounts.whiteCells_ur[key],
+          })),
+          redCells: Object.keys(urineCounts.redCells).map((key) => ({
+            name: key,
+            value: urineCounts.redCells[key],
+          })),
+        };
+      }
+  
+      res.json(response);
+    });
+  });
+  
+    
 // Endpoint to verify OTP
 app.post('/verifyotp', (req, res) => {
     const { email, otp } = req.body;
@@ -842,6 +1057,7 @@ app.get('/require_visit_count/:visit_un', (req, res) => {
 
 app.get('/visits/:visit_un', (req, res) => {
     const visitUn = req.params.visit_un;
+    console.log(visitUn);
     const sql = "SELECT * FROM treatment WHERE visit_id LIKE ?";
     const visitPattern = `${visitUn}%`;
     
@@ -856,7 +1072,9 @@ app.get('/visits/:visit_un', (req, res) => {
 app.get('/visitdetail/:visit_unique', (req, res) => {
     const visit_unique = parseInt(req.params.visit_unique, 10);
 
-    // console.log("before");
+    console.log(visit_unique);
+    
+
 
     const sql = `
         SELECT *
@@ -864,6 +1082,7 @@ app.get('/visitdetail/:visit_unique', (req, res) => {
         JOIN investigation ON treatment.visit_id = investigation.visit_id
         WHERE treatment.visit_id = ?;
     `;
+    
 
     db.query(sql, [visit_unique], (err, results) => {
         // console.log("after");
@@ -872,6 +1091,7 @@ app.get('/visitdetail/:visit_unique', (req, res) => {
             return res.status(500).json({ error: "Error fetching data from the database", details: err.message });
         }
 
+        
         if (results.length === 0) {
             return res.status(404).json({ error: "No data found for the specified PHN" });
         }
@@ -1128,3 +1348,221 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
 //         });
 //     });
 // });
+
+
+// // API to fetch data based on filters
+// app.post('/export-data', (req, res) => {
+//     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
+
+//     let query = '';
+//     const params = [];
+
+//     if (filterType === 'all') {
+//         query = `
+//             SELECT * 
+//             FROM Patient_Admission_Treatment_Investigation_View 
+//             WHERE admission_date BETWEEN ? AND ?
+//         `;
+//         params.push(fromDate, toDate);
+//     } else if (filterType === 'single') {
+//         query = `
+//             SELECT * 
+//             FROM Patient_Admission_Treatment_Investigation_View 
+//             WHERE full_name LIKE ? OR patient_phone_no = ?
+//         `;
+//         params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
+//     }
+
+//     db.query(query, params, (err, results) => {
+//         if (err) return res.status(500).json({ error: err.message });
+
+//         res.status(200).json({ data: results });
+//     });
+// });
+
+// // API to export data to Excel
+// app.post('/export-excel', (req, res) => {
+//     const { data } = req.body;
+
+//     const workbook = new excelJS.Workbook();
+//     const worksheet = workbook.addWorksheet('Patient Data');
+
+//     worksheet.columns = [
+//         { header: 'Patient ID', key: 'patient_id', width: 10 },
+//         { header: 'Full Name', key: 'full_name', width: 20 },
+//         { header: 'Phone Number', key: 'patient_phone_no', width: 15 },
+//         { header: 'Admission Date', key: 'admission_date', width: 15 },
+//         { header: 'Consultant', key: 'consultant_name', width: 20 },
+//         { header: 'Diagnosis', key: 'medical_history_diagnosis', width: 20 },
+//         { header: 'Blood Pressure', key: 'blood_pressure', width: 15 },
+//         { header: 'Treatment Date', key: 'treatment_date', width: 15 }
+//     ];
+
+//     data.forEach((row) => worksheet.addRow(row));
+
+//     res.setHeader(
+//         'Content-Type',
+//         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+//     );
+//     res.setHeader(
+//         'Content-Disposition',
+//         'attachment; filename=PatientData.xlsx'
+//     );
+
+//     workbook.xlsx.write(res).then(() => res.end());
+// });
+
+// // API to export data to PDF
+// app.post('/export-pdf', (req, res) => {
+//     const { data } = req.body;
+
+//     const doc = new pdf();
+//     const filePath = './PatientData.pdf';
+
+//     doc.pipe(fs.createWriteStream(filePath));
+//     doc.pipe(res);
+
+//     doc.fontSize(16).text('Patient Data Report', { align: 'center' });
+//     doc.moveDown();
+
+//     data.forEach((row) => {
+//         doc.fontSize(12).text(`
+//             Patient ID: ${row.patient_id}
+//             Full Name: ${row.full_name}
+//             Phone Number: ${row.patient_phone_no}
+//             Admission Date: ${row.admission_date}
+//             Consultant: ${row.consultant_name}
+//             Diagnosis: ${row.medical_history_diagnosis}
+//             Blood Pressure: ${row.blood_pressure}
+//             Treatment Date: ${row.treatment_date}
+//         `);
+//         doc.moveDown();
+//     });
+
+//     doc.end();
+// });
+
+
+// API to fetch data based on filters
+app.post('/export-data', (req, res) => {
+    const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
+
+    // Validate inputs
+    if (!filterType || (filterType === 'all' && (!fromDate || !toDate)) || (filterType === 'single' && !patientNameOrPhn)) {
+        return res.status(400).json({ error: 'Invalid filter inputs' });
+    }
+
+    let query = '';
+    const params = [];
+
+    if (filterType === 'all') {
+        query = `
+            SELECT * 
+            FROM Patient_Admission_Treatment_Investigation_View 
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+    } else if (filterType === 'single') {
+        query = `
+            SELECT * 
+            FROM Patient_Admission_Treatment_Investigation_View 
+            WHERE full_name LIKE ? OR patient_phone_no = ?
+        `;
+        params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
+    }
+
+    db.query(query, params, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(200).json({ data: results });
+    });
+});
+
+// API to export data to Excel
+app.post('/export-excel', (req, res) => {
+    const { data } = req.body;
+
+    if (!data || !data.length) {
+        return res.status(400).json({ error: 'No data provided for export' });
+    }
+
+    const workbook = new excelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Patient Data');
+
+    // Dynamically set columns based on keys from the first row of data
+    worksheet.columns = Object.keys(data[0]).map((key) => ({
+        header: key.replace(/_/g, ' ').toUpperCase(),
+        key,
+        width: 20
+    }));
+
+    data.forEach((row) => worksheet.addRow(row));
+
+    res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+        'Content-Disposition',
+        'attachment; filename=PatientData.xlsx'
+    );
+
+    workbook.xlsx.write(res).then(() => res.end());
+});
+
+// API to export data to PDF
+app.post('/export-pdf', (req, res) => {
+    const { data } = req.body;
+
+    if (!data || !data.length) {
+        return res.status(400).json({ error: 'No data provided for export' });
+    }
+
+    const doc = new pdf();
+    const filePath = './PatientData.pdf';
+
+
+
+    doc.pipe(fs.createWriteStream(filePath));
+    doc.pipe(res);
+
+    doc.fontSize(16).text('Patient Data Report', { align: 'center' });
+    doc.moveDown();
+
+    data.forEach((row, index) => {
+        doc.fontSize(12).text(`Record ${index + 1}:`);
+        Object.keys(row).forEach((key) => {
+            doc.fontSize(10).text(`${key.replace(/_/g, ' ')}: ${row[key]}`);
+        });
+        doc.moveDown();
+    });
+
+    doc.end();
+
+    // Cleanup temporary file after sending
+    doc.on('finish', () => {
+        fs.unlink(filePath, (err) => {
+            if (err) console.error('Error deleting PDF file:', err);
+        });
+    });
+});
+
+// API route to fetch scan data
+app.get('/scan-data', (req, res) => {
+    const query = `
+      SELECT 
+        SUM(CASE WHEN scan_ct != '' THEN 1 ELSE 0 END) AS CT,
+        SUM(CASE WHEN scan_mri != '' THEN 1 ELSE 0 END) AS MRI,
+        SUM(CASE WHEN uss_tas != '' THEN 1 ELSE 0 END) AS TAS,
+        SUM(CASE WHEN uss_tus != '' THEN 1 ELSE 0 END) AS TUS
+      FROM investigation;
+    `;
+  
+    db.query(query, (err, results) => {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        res.json(results[0]);
+      }
+    });
+  });
+  
