@@ -36,7 +36,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gyncology"
+    database:"gynaecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -273,7 +273,7 @@ app.get('/admitdata', (req, res) => {
     const offset = (page - 1) * limit; // Calculate offset
 
     db.query(
-        'SELECT * FROM patient INNER JOIN admission ON patient.phn = admission.phn WHERE admission.status = "admit" LIMIT ? OFFSET ?',
+        'SELECT * FROM patient admit_status = "admitted" LIMIT ? OFFSET ?',
         [limit, offset],
         (err, results) => {
             if (err) {
@@ -292,7 +292,7 @@ app.get('/dischargedata', (req, res) => {
     const offset = (page - 1) * limit; // Calculate offset
 
     db.query(
-        'SELECT * FROM patient INNER JOIN admission ON patient.phn = admission.phn WHERE admission.status = "discharged" LIMIT ? OFFSET ?',
+        'SELECT * FROM patient WHERE admit_status = "discharged" LIMIT ? OFFSET ?',
         [limit, offset],
         (err, results) => {
             if (err) {
@@ -394,7 +394,7 @@ app.get('/admissiondetail/:phn/:add_count', (req, res) => {
 });
 
 app.put('/discharge/:phn', (req, res) => {
-    const sql = 'UPDATE admission SET status = "discharged" WHERE phn = ?';
+    const sql = 'UPDATE patient SET admit_status = "discharged" WHERE phn = ?';
     const phn = req.params.phn;
     db.query(sql, [phn], (err, result) => {
         if (err) {
@@ -696,8 +696,8 @@ app.get('/admissions/:phn', (req, res) => {
 });
 
 app.get('/stats', (req, res) => {
-    const dischargedSql = "SELECT COUNT(*) AS discharged_count FROM admission WHERE status = 'discharged'";
-    const admittedSql = "SELECT COUNT(*) AS admitted_count FROM admission WHERE status = 'admit'";
+    const dischargedSql = "SELECT COUNT(*) AS discharged_count FROM patient WHERE admit_status = 'discharged'";
+    const admittedSql = "SELECT COUNT(*) AS admitted_count FROM patient WHERE admit_status = 'admitted'";
     const total_patientsSql = "SELECT COUNT(*) AS total_patients FROM patient";
     const admissionSql = "SELECT COUNT(*) AS admission_count FROM admission WHERE DATE(date) >= CURDATE() - INTERVAL 30 DAY";
 
