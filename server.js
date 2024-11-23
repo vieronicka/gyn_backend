@@ -276,7 +276,7 @@ app.get('/admitdata', (req, res) => {
     const offset = (page - 1) * limit; // Calculate offset
 
     db.query(
-        'SELECT * FROM patient admit_status = "admitted" LIMIT ? OFFSET ?',
+        'SELECT * FROM patient WHERE admit_status = "admitted" LIMIT ? OFFSET ?',
         [limit, offset],
         (err, results) => {
             if (err) {
@@ -435,42 +435,94 @@ app.delete('/staff_information/:id', (req, res) => {
   });
 
 
-  app.post('/searchdata', (req, res) => {
-    const { val } = req.body;
-    const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
+//   app.post('/searchdata', (req, res) => {
+//     const { val } = req.body;
+//     const limit = parseInt(req.query.limit) || 8; // Default limit to 8 if not specified
+//     const page = parseInt(req.query.page) || 1; // Default to page 1 if not specified
+//     const offset = (page - 1) * limit; // Calculate offset    let sqlQuery = 'SELECT * FROM patient WHERE ';
+//     let conditions = [];
+//     let params = [];
+
+//     // Check if the input is a number
+//     if (!isNaN(val)) {
+//         // If val is a number, search by phone number or NIC
+//         conditions.push('phn LIKE ? OR nic LIKE ?');
+//         params.push(`%${val}%`, `%${val}%`);
+//         console.log(params);
+//     } else {
+//         // If val is a string, search by name
+//         conditions.push('full_name LIKE ?');
+//         params.push(`%${val}%`);
+//         console.log(params);
+//     }
+
+//     if (conditions.length > 0) {
+//         sqlQuery += conditions.join(' AND ') + ' LIMIT ? OFFSET ?',
+//         [limit, offset],
+//         // params.push(parseInt(limit)); // Adding limit to params
+//         // console.log('SQL Query:', sqlQuery);
+//         // console.log('Params:', params);
+//         db.query(sqlQuery, params, (err, results) => {
+//             if (err) {
+//                 res.status(500).send('Error retrieving data from database');
+//             } else {
+//                 res.json(results);
+//             }
+//         });
+//     } else {
+//         res.status(400).send('Invalid search input');
+//     }
+// });
+
+app.get('/searchdata', (req, res) => {
+
+    const { val } = req.query; // Extract the search value from the request body
+    console.log('Search value:', val);
+    const limit = parseInt(req.query.limit) || 8; // Default limit to 8 if not provided
+    const page = parseInt(req.query.page) || 1;  // Default page to 1 if not provided
+    const offset = (page - 1) * limit; // Calculate offset for pagination
+
     let sqlQuery = 'SELECT * FROM patient WHERE ';
     let conditions = [];
     let params = [];
 
     // Check if the input is a number
     if (!isNaN(val)) {
-        // If val is a number, search by phone number or NIC
-        conditions.push('phn LIKE ? OR nic LIKE ?');
+        // Search by phone number or NIC if the input is numeric
+        conditions.push('(phn LIKE ? OR nic LIKE ?)');
         params.push(`%${val}%`, `%${val}%`);
-        console.log(params);
     } else {
-        // If val is a string, search by name
+        // Search by full name if the input is a string
         conditions.push('full_name LIKE ?');
         params.push(`%${val}%`);
-        console.log(params);
     }
 
+    // If there are search conditions, complete the query
     if (conditions.length > 0) {
-        sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
-        params.push(parseInt(limit)); // Adding limit to params
-        // console.log('SQL Query:', sqlQuery);
-        // console.log('Params:', params);
+        sqlQuery += conditions.join(' AND '); // Combine conditions with AND
+        sqlQuery += ' LIMIT ? OFFSET ?'; // Add pagination
+
+        // Add limit and offset to the parameters array
+        params.push(limit, offset);
+
+        console.log('SQL Query:', sqlQuery);
+        console.log('Params:', params);
+
+        // Execute the query
         db.query(sqlQuery, params, (err, results) => {
             if (err) {
+                console.error('Error retrieving data from database:', err);
                 res.status(500).send('Error retrieving data from database');
             } else {
-                res.json(results);
+                res.json(results); // Send the query results as the response
             }
         });
     } else {
+        // If no valid input is provided, return a 400 Bad Request
         res.status(400).send('Invalid search input');
     }
 });
+
 
 app.listen(8081,() =>{
     console.log("Running...");
@@ -1297,19 +1349,41 @@ app.post('/export-pdf', (req, res) => {
     const filePath = './PatientData.pdf';
 
 
-
+    // Stream the PDF to both a file and the response
     doc.pipe(fs.createWriteStream(filePath));
     doc.pipe(res);
 
-    doc.fontSize(16).text('Patient Data Report', { align: 'center' });
-    doc.moveDown();
+    // Add hospital symbol image to the header
+    doc.image('./download.png', 50, 30, { width: 50 });
+
+    // Add header text
+    doc.fontSize(20)
+       .font('Courier') //Helvetica-Bold
+       .fillColor('blue')
+       .text('GYNECOLOGY DEPARTMENT\nJAFFNA TEACHING HOSPITAL', 100, 35, { align: 'center' });  // Adjust the X, Y values
+
+    // Add a horizontal line after the header
+    doc.moveTo(50, 100)
+       .lineTo(550, 100)
+       .stroke();
+
+    // Move down to start the main content
+    doc.moveDown(2);
+
+    // Report title
+    doc.fontSize(16).text('Patient Data Report', { align: 'center', underline: true});
+    doc.fillColor('black')
+    doc.moveDown(1);
 
     data.forEach((row, index) => {
-        doc.fontSize(12).text(`Record ${index + 1}:`);
+        doc.fontSize(12).font('Courier-Bold').text(`Record ${index + 1}:` , { underline: true });
         Object.keys(row).forEach((key) => {
-            doc.fontSize(10).text(`${key.replace(/_/g, ' ')}: ${row[key]}`);
+            doc.fontSize(10)
+            .font('Courier')
+            .moveDown(0.5)
+            .text(`${key.replace(/_/g, ' ')}: ${row[key]}`);
         });
-        doc.moveDown();
+        doc.moveDown(4);
     });
 
     doc.end();
@@ -1321,6 +1395,7 @@ app.post('/export-pdf', (req, res) => {
         });
     });
 });
+
 
 // API route to fetch scan data
 app.get('/scan-data', (req, res) => {
@@ -1364,4 +1439,30 @@ app.post('/chat', async (req, res) => {
     console.error('Error with Gemini API:', error);
     res.status(500).json({ error: 'Something went wrong.' });
   }
+});
+
+
+
+// API to fetch data based on filters
+app.post('/export-dataa', (req, res) => {
+    const {fromDate, toDate} = req.body;
+
+    // Validate inputs
+
+    let query = '';
+    const params = [];
+
+    
+        query = `
+            SELECT * 
+            FROM Patient_Admission_Treatment_Investigation_View 
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+    
+
+    db.query(query, params, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(200).json({ data: results });
+    });
 });
