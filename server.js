@@ -6,8 +6,15 @@ import session from "express-session";
 import bcrypt from "bcryptjs";
 import keys from './Config/keys.js';
 import jwt from 'jsonwebtoken';
+import xlsx from 'xlsx';
+import excelJS from 'exceljs';
+import pdf from 'pdfkit';
+import fs from 'fs';
+import path from 'path'; 
+import axios from 'axios';
 
 const app = express();
+const OPENAI_API_KEY = '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'; 
 
 app.use(cors());
 
@@ -31,7 +38,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gynaecology"
+    database:"gynecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -705,4 +712,136 @@ app.get('/admissions/:phn', (req, res) => {
         res.json(results); // Assuming results is an array of admissions
     });
 });
+
+
+// API to fetch data based on filters
+app.post('/export-data', (req, res) => {
+    const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
+
+    // Validate inputs
+    if (!filterType || (filterType === 'all' && (!fromDate || !toDate)) || (filterType === 'single' && !patientNameOrPhn)) {
+        return res.status(400).json({ error: 'Invalid filter inputs' });
+    }
+
+    let query = '';
+    const params = [];
+
+    if (filterType === 'all') {
+        query = `
+            SELECT * 
+            FROM Patient_Admission_Treatment_Investigation_View 
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+    } else if (filterType === 'single') {
+        query = `
+            SELECT * 
+            FROM Patient_Admission_Treatment_Investigation_View 
+            WHERE full_name LIKE ? OR patient_phone_no = ?
+        `;
+        params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
+    }
+
+    db.query(query, params, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(200).json({ data: results });
+    });
+});
+
+
+// API to fetch data based on filters
+app.post('/export-dataa', (req, res) => {
+    const {fromDate, toDate} = req.body;
+
+    // Validate inputs
+
+    let query = '';
+    const params = [];
+
+    
+        query = `
+            SELECT * 
+            FROM Patient_Admission_Treatment_Investigation_View 
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+    
+
+    db.query(query, params, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(200).json({ data: results });
+    });
+});
+
+// API to export data to Excel
+app.post('/export-excel', (req, res) => {
+    const { data } = req.body;
+
+    if (!data || !data.length) {
+        return res.status(400).json({ error: 'No data provided for export' });
+    }
+
+    const workbook = new excelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Patient Data');
+
+    // Dynamically set columns based on keys from the first row of data
+    worksheet.columns = Object.keys(data[0]).map((key) => ({
+        header: key.replace(/_/g, ' ').toUpperCase(),
+        key,
+        width: 20
+    }));
+
+    data.forEach((row) => worksheet.addRow(row));
+
+    res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+        'Content-Disposition',
+        'attachment; filename=PatientData.xlsx'
+    );
+
+    workbook.xlsx.write(res).then(() => res.end());
+});
+
+// API to export data to PDF
+app.post('/export-pdf', (req, res) => {
+    const { data } = req.body;
+
+    if (!data || !data.length) {
+        return res.status(400).json({ error: 'No data provided for export' });
+    }
+
+    const doc = new pdf();
+    const filePath = './PatientData.pdf';
+
+
+
+    doc.pipe(fs.createWriteStream(filePath));
+    doc.pipe(res);
+
+    doc.fontSize(16).text('Patient Data Report', { align: 'center' });
+    doc.moveDown();
+
+    data.forEach((row, index) => {
+        doc.fontSize(12).text(`Record ${index + 1}:`);
+        Object.keys(row).forEach((key) => {
+            doc.fontSize(10).text(`${key.replace(/_/g, ' ')}: ${row[key]}`);
+        });
+        doc.moveDown();
+    });
+
+    doc.end();
+
+    // Cleanup temporary file after sending
+    doc.on('finish', () => {
+        fs.unlink(filePath, (err) => {
+            if (err) console.error('Error deleting PDF file:', err);
+        });
+    });
+});
+
+
+
 
