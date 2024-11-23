@@ -10,8 +10,11 @@ import nodemailer from 'nodemailer';
 import excelJS from 'exceljs';
 import pdf from 'pdfkit';
 import fs from 'fs';
-import path from 'path'; 
+import path from 'path';
+import dotenv from 'dotenv';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
+dotenv.config();
 const app = express();
 
 app.use(cors());
@@ -254,7 +257,7 @@ app.get('/details', (req, res) => {
 });
 
 app.get('/data', (req, res) => {
-    const limit = parseInt(req.query.limit) || 6;
+    const limit = parseInt(req.query.limit) || 8;
     const page = parseInt(req.query.page) || 1;
     const offset = (page - 1) * limit;
     
@@ -287,7 +290,7 @@ app.get('/admitdata', (req, res) => {
 });
 
 app.get('/dischargedata', (req, res) => {
-    const limit = parseInt(req.query.limit) || 1; // Default limit to 8 if not specified
+    const limit = parseInt(req.query.limit) || 8; // Default limit to 8 if not specified
     const page = parseInt(req.query.page) || 1; // Default to page 1 if not specified
     const offset = (page - 1) * limit; // Calculate offset
 
@@ -406,15 +409,18 @@ app.put('/discharge/:phn', (req, res) => {
 });
 
 app.get('/data1', (req, res) => {
-    const limit = req.query.limit || 20; // Default limit to 10 if not specified in the query string
-    db.query('SELECT * FROM staff LIMIT ?', [limit], (err, results) => {
+    const limit = parseInt(req.query.limit) || 8;
+    const page = parseInt(req.query.page) || 1;
+    const offset = (page - 1) * limit;
+    db.query('SELECT * FROM staff LIMIT ? OFFSET ?', [limit, offset], (err, results) => {
         if (err) {
             res.status(500).send('Error retrieving data from database');
         } else {
             res.json(results);
         }
     });
-});
+  });
+  
 
 app.delete('/staff_information/:id', (req, res) => {
     const sql = 'DELETE FROM staff WHERE id = ?';
@@ -1336,3 +1342,26 @@ app.get('/scan-data', (req, res) => {
     });
   });
   
+
+
+
+
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+app.post('/chat', async (req, res) => {
+  const { userMessage } = req.body;
+  console.log(userMessage)
+
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const chat = model.startChat();
+    const result = await chat.sendMessage(userMessage);
+    const responseText = result.response.text();
+
+    res.json({ reply: responseText });
+  } catch (error) {
+    console.error('Error with Gemini API:', error);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
