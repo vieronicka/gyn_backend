@@ -6,6 +6,7 @@ import session from "express-session";
 import bcrypt from "bcryptjs";
 import keys from './Config/keys.js';
 import jwt from 'jsonwebtoken';
+
 import nodemailer from 'nodemailer';
 import excelJS from 'exceljs';
 import pdf from 'pdfkit';
@@ -13,6 +14,8 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { exec } from 'child_process';
+import os from 'os';
 
 dotenv.config();
 const app = express();
@@ -1291,6 +1294,59 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
     });
 });
 
+// app.post('/export-data', (req, res) => {
+//     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
+
+//     // Validate inputs
+//     if (!filterType || (filterType === 'all' && (!fromDate || !toDate)) || (filterType === 'single' && !patientNameOrPhn)) {
+//         return res.status(400).json({ error: 'Invalid filter inputs' });
+//     }
+
+//     let query = '';
+//     const params = [];
+
+//     // 1. Whole Data - fetch data from `patient_admission_treatment_investigation_view`
+//     if (filterType === 'all') {
+//         query = `
+//             SELECT * 
+//             FROM patient_admission_treatment_investigation_view
+//             WHERE admission_date BETWEEN ? AND ?
+//         `;
+//         params.push(fromDate, toDate);
+
+//     // 2. Admission Data - fetch data from `patient_admission_medicalhx_view`
+//     } else if (filterType === 'admission') {
+//         query = `
+//             SELECT * 
+//             FROM patient_admission_medicalhx_view
+//             WHERE admission_date BETWEEN ? AND ?
+//         `;
+//         params.push(fromDate, toDate);
+
+//     // 3. Visit Data - fetch data from `treatment_investigation`
+//     } else if (filterType === 'visit') {
+//         query = `
+//             SELECT * 
+//             FROM treatment_investigation_view
+//             WHERE treatment_date BETWEEN ? AND ?
+//         `;
+//         params.push(fromDate, toDate);
+
+//     // 4. Single Data - fetch from `patient_admission_treatment_investigation_view` based on patient name or PHN
+//     } else if (filterType === 'single') {
+//         query = `
+//             SELECT * 
+//             FROM patient_admission_treatment_investigation_view
+//             WHERE full_name LIKE ? OR patient_phone_no = ?
+//         `;
+//         params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
+//     }
+
+//     db.query(query, params, (err, results) => {
+//         if (err) return res.status(500).json({ error: err.message });
+//         res.status(200).json({ data: results });
+//     });
+// });
 
 // API to fetch data based on filters
 app.post('/export-data', (req, res) => {
@@ -1302,23 +1358,135 @@ app.post('/export-data', (req, res) => {
     }
 
     let query = '';
+    let countQuery = '';
     const params = [];
 
+    // 1. Whole Data - fetch data from `patient_admission_treatment_investigation_view`
     if (filterType === 'all') {
+        query = `
+            SELECT * 
+            FROM patient_admission_treatment_investigation_view
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        countQuery = `
+            SELECT COUNT(*) AS count
+            FROM patient_admission_treatment_investigation_view
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+
+    // 2. Admission Data - fetch data from `patient_admission_medicalhx_view`
+    } else if (filterType === 'admission') {
+        query = `
+            SELECT * 
+            FROM patient_admission_medicalhx_view
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        countQuery = `
+            SELECT COUNT(*) AS count
+            FROM patient_admission_medicalhx_view
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+
+    // 3. Visit Data - fetch data from `treatment_investigation`
+    } else if (filterType === 'visit') {
+        query = `
+            SELECT * 
+            FROM treatment_investigation_view
+            WHERE treatment_date BETWEEN ? AND ?
+        `;
+        countQuery = `
+            SELECT COUNT(*) AS count
+            FROM treatment_investigation_view
+            WHERE treatment_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+
+    // 4. Single Data - fetch from `patient_admission_treatment_investigation_view` based on patient name or PHN
+    } else if (filterType === 'single') {
+        query = `
+            SELECT * 
+            FROM patient_admission_treatment_investigation_view
+            WHERE full_name LIKE ? OR patient_phone_no = ?
+        `;
+        countQuery = `
+            SELECT COUNT(*) AS count
+            FROM patient_admission_treatment_investigation_view
+            WHERE full_name LIKE ? OR patient_phone_no = ?
+        `;
+        params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
+    }
+
+    // First, get the count of records
+    db.query(countQuery, params, (err, countResults) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const recordCount = countResults[0].count;
+
+        // Then, fetch the actual data
+        db.query(query, params, (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // Send both the record count and the data in the response
+            res.status(200).json({ count: recordCount, data: results });
+        });
+    });
+});
+
+
+// // API to fetch data based on filters
+// app.post('/export-data', (req, res) => {
+//     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
+
+//     // Validate inputs
+//     if (!filterType || (filterType === 'all' && (!fromDate || !toDate)) || (filterType === 'single' && !patientNameOrPhn)) {
+//         return res.status(400).json({ error: 'Invalid filter inputs' });
+//     }
+
+//     let query = '';
+//     const params = [];
+
+//     if (filterType === 'all') {
+//         query = `
+//             SELECT * 
+//             FROM Patient_Admission_Treatment_Investigation_View 
+//             WHERE admission_date BETWEEN ? AND ?
+//         `;
+//         params.push(fromDate, toDate);
+//     } else if (filterType === 'single') {
+//         query = `
+//             SELECT * 
+//             FROM Patient_Admission_Treatment_Investigation_View 
+//             WHERE full_name LIKE ? OR patient_phone_no = ?
+//         `;
+//         params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
+//     }
+
+//     db.query(query, params, (err, results) => {
+//         if (err) return res.status(500).json({ error: err.message });
+//         res.status(200).json({ data: results });
+//     });
+// });
+
+
+// API to fetch data based on filters
+app.post('/export-dataa', (req, res) => {
+    const {fromDate, toDate} = req.body;
+
+    // Validate inputs
+
+    let query = '';
+    const params = [];
+
+    
         query = `
             SELECT * 
             FROM Patient_Admission_Treatment_Investigation_View 
             WHERE admission_date BETWEEN ? AND ?
         `;
         params.push(fromDate, toDate);
-    } else if (filterType === 'single') {
-        query = `
-            SELECT * 
-            FROM Patient_Admission_Treatment_Investigation_View 
-            WHERE full_name LIKE ? OR patient_phone_no = ?
-        `;
-        params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
-    }
+    
 
     db.query(query, params, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -1368,7 +1536,6 @@ app.post('/export-pdf', (req, res) => {
     const doc = new pdf();
     const filePath = './PatientData.pdf';
 
-
     doc.pipe(fs.createWriteStream(filePath));
     doc.pipe(res);
 
@@ -1383,6 +1550,7 @@ app.post('/export-pdf', (req, res) => {
        .lineTo(550, 100)
        .stroke();
 
+    // Move down to start the main content
     doc.moveDown(2);
 
     doc.fontSize(16).text('Patient Data Report', { align: 'center', underline: true});
@@ -1408,6 +1576,8 @@ app.post('/export-pdf', (req, res) => {
     });
 });
 
+
+// API route to fetch scan data
 app.get('/scan-data', (req, res) => {
     const query = `
       SELECT 
@@ -1446,6 +1616,14 @@ app.post('/chat', async (req, res) => {
   }
 });
 
+
+
+// API to fetch data based on filters
+app.post('/export-dataa', (req, res) => {
+    const {fromDate, toDate} = req.body;
+
+    // Validate inputs
+
 app.post('/export-dataa', (req, res) => {
     const {fromDate, toDate} = req.body;
     let query = '';
@@ -1458,12 +1636,68 @@ app.post('/export-dataa', (req, res) => {
             WHERE admission_date BETWEEN ? AND ?
         `;
         params.push(fromDate, toDate);
+
     db.query(query, params, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.status(200).json({ data: results });
     });
 });
 
+app.get('/backup-database', (req, res) => {
+  const dbHost = 'localhost';
+  const dbUser = 'root';
+  const dbPassword = '';
+  const dbName = 'gynecology';
+
+  const backupFilePath = path.join('C:', 'Users', 'Staff', 'Desktop', 'backups', `backup-${Date.now()}.sql`);
+
+// Ensure the mysqldump command uses quotes for file paths with spaces
+// const command = `"C:\\Program Files\\MySQL\\MySQL Server X.X\\bin\\mysqldump.exe" -h localhost -u root -pYourPassword gynecology > "${backupFilePath}"`;
+
+  
+// const homeDir = os.homedir();
+
+// Specify the backup directory on the Desktop (adjust as needed for Windows)
+// const backupDir = path.join(homeDir, 'Desktop', 'backups');
+
+// Ensure the backups directory exists, create it if not
+// if (!fs.existsSync(backupDir)) {
+//   fs.mkdirSync(backupDir, { recursive: true });
+// }
+
+// // Specify the backup file name and location
+// const backupFilePath = path.join(backupDir, `backup-${Date.now()}.sql`);
+  
+  // Create the mysqldump command
+  const command = `"C:\\xampp\\mysql\\bin\\mysqldump.exe" -h ${dbHost} -u ${dbUser}  ${dbName} > ${backupFilePath}`;
+
+  // Execute the command to dump the database
+  exec(command, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error executing mysqldump: ${error.message}`);
+      return res.status(500).json({ error: 'Failed to create database backup' });
+    }
+    if (stderr) {
+      console.error(`stderr: ${stderr}`);
+      return res.status(500).json({ error: 'Failed to create database backup' });
+    }
+
+    // Send the file as a response
+    res.download(backupFilePath, 'database-backup.sql', (err) => {
+      if (err) {
+        console.error('Error sending the file:', err);
+      }
+
+      // Clean up the backup file after download
+      fs.unlink(backupFilePath, (unlinkErr) => {
+        if (unlinkErr) {
+          console.error('Error deleting backup file:', unlinkErr);
+        }
+      });
+    });
+  });
+});
+  
 app.get('/dynamicsearchdata', (req, res) => {
     const { val } = req.query;
     const limit = 10;
