@@ -1498,5 +1498,35 @@ app.get('/dynamicsearchdata', (req, res) => {
     });
   });
 
+  app.get('/staff/:id', async (req, res) => {
+    const staffId = req.params.id;
+    try {
+      const staffData = await Staff.findOne({ where: { id: staffId } });
+      if (staffData) {
+        res.json(staffData);
+      } else {
+        res.status(404).json({ message: 'Staff not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error });
+    }
+  });
+
+  app.put('/staff/:id', (req, res) => {
+    const { id } = req.params;
+    const { full_name, phone_no, role, email, password, status } = req.body;
+  
+    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
+  
+    db.query(sql, [full_name, phone_no, role, email, password, status, id], (err, result) => {
+      if (err) {
+        console.error('Error executing SQL:', err);
+        return res.status(500).json({ error: 'Failed to update staff data' });
+      }
+  
+      res.status(200).json({ message: 'Staff data updated successfully', result });
+    });
+  });
+
   const PORT = 5000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
