@@ -42,8 +42,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gynecology"
-    database:"gyntest"
+    database:"gynaecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -501,6 +500,10 @@ app.get('/searchdata', (req, res) => {
 
     const { val } = req.query; // Extract the search value from the request body
     console.log('Search value:', val);
+    console.log('Received query:', req.query);
+    console.log('Request received:', req.query); // Logs request query
+    console.log('Search value:', val); // Logs search value
+
     const limit = parseInt(req.query.limit) || 8; // Default limit to 8 if not provided
     const page = parseInt(req.query.page) || 1;  // Default page to 1 if not provided
     const offset = (page - 1) * limit; // Calculate offset for pagination
@@ -1345,6 +1348,7 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
 //     });
 // });
 
+// API to fetch data based on filters
 app.post('/export-data', (req, res) => {
     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
 
@@ -1522,7 +1526,6 @@ app.post('/export-excel', (req, res) => {
     workbook.xlsx.write(res).then(() => res.end());
 });
 
-// API to export data to PDF
 app.post('/export-pdf', (req, res) => {
     const { data } = req.body;
 
@@ -1533,21 +1536,16 @@ app.post('/export-pdf', (req, res) => {
     const doc = new pdf();
     const filePath = './PatientData.pdf';
 
-
-    // Stream the PDF to both a file and the response
     doc.pipe(fs.createWriteStream(filePath));
     doc.pipe(res);
 
-    // Add hospital symbol image to the header
     doc.image('./download.png', 50, 30, { width: 50 });
 
-    // Add header text
     doc.fontSize(20)
        .font('Courier') //Helvetica-Bold
        .fillColor('blue')
        .text('GYNECOLOGY DEPARTMENT\nJAFFNA TEACHING HOSPITAL', 100, 35, { align: 'center' });  // Adjust the X, Y values
 
-    // Add a horizontal line after the header
     doc.moveTo(50, 100)
        .lineTo(550, 100)
        .stroke();
@@ -1555,7 +1553,6 @@ app.post('/export-pdf', (req, res) => {
     // Move down to start the main content
     doc.moveDown(2);
 
-    // Report title
     doc.fontSize(16).text('Patient Data Report', { align: 'center', underline: true});
     doc.fillColor('black')
     doc.moveDown(1);
@@ -1572,8 +1569,6 @@ app.post('/export-pdf', (req, res) => {
     });
 
     doc.end();
-
-    // Cleanup temporary file after sending
     doc.on('finish', () => {
         fs.unlink(filePath, (err) => {
             if (err) console.error('Error deleting PDF file:', err);
@@ -1602,11 +1597,6 @@ app.get('/scan-data', (req, res) => {
     });
   });
   
-
-
-
-
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post('/chat', async (req, res) => {
@@ -1634,6 +1624,8 @@ app.post('/export-dataa', (req, res) => {
 
     // Validate inputs
 
+app.post('/export-dataa', (req, res) => {
+    const {fromDate, toDate} = req.body;
     let query = '';
     const params = [];
 
@@ -1644,7 +1636,6 @@ app.post('/export-dataa', (req, res) => {
             WHERE admission_date BETWEEN ? AND ?
         `;
         params.push(fromDate, toDate);
-    
 
     db.query(query, params, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -1706,3 +1697,40 @@ app.get('/backup-database', (req, res) => {
     });
   });
 });
+  
+app.get('/dynamicsearchdata', (req, res) => {
+    const { val } = req.query;
+    const limit = 10;
+  
+    if (!val || val.trim() === '') {
+      return res.json([]);
+    }
+  
+    let sqlQuery = 'SELECT id, full_name, nic, phn FROM patient WHERE ';
+    let conditions = [];
+    let params = [];
+  
+    if (!isNaN(val)) {
+      conditions.push('(phn LIKE ? OR nic LIKE ?)');
+      params.push(`%${val}%`, `%${val}%`);
+    } else {
+      conditions.push('full_name LIKE ?');
+      params.push(`%${val}%`);
+    }
+  
+    sqlQuery += conditions.join(' AND ');
+    sqlQuery += ' LIMIT ?';
+    params.push(limit);
+  
+    db.query(sqlQuery, params, (err, results) => {
+      if (err) {
+        console.error('Error retrieving data from database:', err);
+        res.status(500).send('Database error');
+      } else {
+        res.json(results);
+      }
+    });
+  });
+
+  const PORT = 5000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
