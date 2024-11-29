@@ -43,6 +43,7 @@ const db =mysql.createConnection({
     user:"root",
     password:"",
     database:"gynecology"
+    database:"gyntest"
 })
 
 app.post('/reg', (req, res) => {
@@ -199,6 +200,7 @@ app.post('/login',  (req, res) => {
     const sql = "SELECT * FROM staff WHERE email = ?";
     // console.log(req.body);
     db.query(sql, [email],  (err, results) => {
+        console.log(results.length)
       if (err) {
         return res.status(500).send('Server error');
       }
@@ -217,6 +219,7 @@ app.post('/login',  (req, res) => {
             success: true,
             token: 'Bearer ' + token,
             role: user.role,
+            userId: user.id
           });
         });
     }  
@@ -247,7 +250,24 @@ app.post('/login',  (req, res) => {
         res.send('Row updated successfully');
     });
 });
+
+app.get('/staff/:userId', (req, res) => {
+    const userId = req.params.userId;
   
+    const sql = "SELECT id, full_name, phone_no, role, email, status FROM staff WHERE id = ?";
+    db.query(sql, [userId], (err, results) => {
+      if (err) {
+        console.error("Database query error:", err);
+        return res.status(500).json({ error: "Server error" });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+  
+      const user = results[0];
+      res.status(200).json(user); // Return user data as JSON
+    });
+  });
 
 app.get('/details', (req, res) => {
     db.query('SELECT id, full_name, blood_gr,phn, phone_no, address, dob, marrital_status, nic,  FROM patient', (err, results) => {
