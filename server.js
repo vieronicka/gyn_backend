@@ -1566,9 +1566,9 @@ app.get('/backup-database', (req, res) => {
   const dbHost = 'localhost';
   const dbUser = 'root';
   const dbPassword = '';
-  const dbName = 'gynecology';
+  const dbName = 'gynaecology';
 
-  const backupFilePath = path.join('C:', 'Users', 'Staff', 'Desktop', 'backups', `backup-${Date.now()}.sql`);
+  const backupFilePath = path.join('C:', 'Users', 'Gobikathish', 'Desktop', 'backups', `backup-${Date.now()}.sql`);
   
   // Create the mysqldump command
   const command = `"C:\\xampp\\mysql\\bin\\mysqldump.exe" -h ${dbHost} -u ${dbUser}  ${dbName} > ${backupFilePath}`;
