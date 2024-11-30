@@ -849,18 +849,48 @@ app.get('/stats', (req, res) => {
                     return res.status(500).json({ message: 'Error sending email' });
                 }
                 
-                // Log `info` only if there’s no error
                 res.status(200).json({ message: 'OTP sent successfully' });
             });
             
         });
         console.log(otp);
         console.log(email);
-        // console.log(error);
 
 
     });
     
+    app.post('/contact_us', (req, res) => {
+        const { email, username, complaints } = req.body;
+        console.log(req.body);
+        if (!email || !username || !complaints) {
+          return res.status(400).send({ error: 'All fields are required.' });
+        }
+      
+        const transporter = nodemailer.createTransport({
+          service: 'Gmail',
+          auth: {
+            user: 'gyntngv@gmail.com', 
+            pass: 'ymee fufl synm cknk', 
+          },
+        });
+      
+        const mailOptions = {
+          from: email,
+          to: 'gyntngv@gmail.com', 
+          subject: `Complaint from ${username}`,
+          text: `Username: ${username}\n Email: ${email}\n Complaint:\n${complaints}`,
+        };
+      
+        transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).send({ error: 'Failed to send email.' });
+          }
+          res.send({ message: 'Complaint submitted successfully!' });
+        });
+      });
+      
+
     app.get('/complaints-stats', (req, res) => {
         const sql = "SELECT complaints FROM treatment";
     
@@ -1566,9 +1596,9 @@ app.get('/backup-database', (req, res) => {
   const dbHost = 'localhost';
   const dbUser = 'root';
   const dbPassword = '';
-  const dbName = 'gynecology';
+  const dbName = 'gynaecology';
 
-  const backupFilePath = path.join('C:', 'Users', 'Staff', 'Desktop', 'backups', `backup-${Date.now()}.sql`);
+  const backupFilePath = path.join('C:', 'Users', 'Gobikathish', 'Desktop', 'backups', `backup-${Date.now()}.sql`);
   
   // Create the mysqldump command
   const command = `"C:\\xampp\\mysql\\bin\\mysqldump.exe" -h ${dbHost} -u ${dbUser}  ${dbName} > ${backupFilePath}`;
