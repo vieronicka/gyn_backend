@@ -1579,11 +1579,11 @@ app.get('/dynamicsearchdata', (req, res) => {
 
   app.put('/staff/:id', (req, res) => {
     const { id } = req.params;
-    const { full_name, phone_no, role, email, password, status } = req.body;
+    const { full_name, phone_no, role, email } = req.body;
   
-    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
+    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ? WHERE id = ?';
   
-    db.query(sql, [full_name, phone_no, role, email, password, status, id], (err, result) => {
+    db.query(sql, [full_name, phone_no, role, email, id], (err, result) => {
       if (err) {
         console.error('Error executing SQL:', err);
         return res.status(500).json({ error: 'Failed to update staff data' });
