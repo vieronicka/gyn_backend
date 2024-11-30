@@ -1114,6 +1114,7 @@ app.get('/visits/:visit_un', (req, res) => {
 app.get('/visitdetail/:visit_unique', (req, res) => {
 
     const visit_unique = req.params.visit_unique;
+    // console.log(visit_unique);
 
     const sql = `
         SELECT *
@@ -1248,6 +1249,7 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
     });
 });
 
+
 app.post('/export-data', (req, res) => {
     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
 
@@ -1333,42 +1335,6 @@ app.post('/export-data', (req, res) => {
     });
 });
 
-
-// // API to fetch data based on filters
-// app.post('/export-data', (req, res) => {
-//     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
-
-//     // Validate inputs
-//     if (!filterType || (filterType === 'all' && (!fromDate || !toDate)) || (filterType === 'single' && !patientNameOrPhn)) {
-//         return res.status(400).json({ error: 'Invalid filter inputs' });
-//     }
-
-//     let query = '';
-//     const params = [];
-
-//     if (filterType === 'all') {
-//         query = `
-//             SELECT * 
-//             FROM Patient_Admission_Treatment_Investigation_View 
-//             WHERE admission_date BETWEEN ? AND ?
-//         `;
-//         params.push(fromDate, toDate);
-//     } else if (filterType === 'single') {
-//         query = `
-//             SELECT * 
-//             FROM Patient_Admission_Treatment_Investigation_View 
-//             WHERE full_name LIKE ? OR patient_phone_no = ?
-//         `;
-//         params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
-//     }
-
-//     db.query(query, params, (err, results) => {
-//         if (err) return res.status(500).json({ error: err.message });
-//         res.status(200).json({ data: results });
-//     });
-// });
-
-
 // API to fetch data based on filters
 app.post('/export-dataa', (req, res) => {
     const {fromDate, toDate} = req.body;
@@ -1437,7 +1403,9 @@ app.post('/export-pdf', (req, res) => {
 
     doc.pipe(fs.createWriteStream(filePath));
     doc.pipe(res);
+
     doc.image('./download.png', 50, 30, { width: 50 });
+
     doc.fontSize(20)
        .font('Courier') 
        .fillColor('blue')
@@ -1448,6 +1416,7 @@ app.post('/export-pdf', (req, res) => {
        .stroke();
 
     doc.moveDown(2);
+
     doc.fontSize(16).text('Patient Data Report', { align: 'center', underline: true});
     doc.fillColor('black')
     doc.moveDown(1);
@@ -1614,6 +1583,12 @@ app.get('/backup-database', (req, res) => {
       console.error(`stderr: ${stderr}`);
       return res.status(500).json({ error: 'Failed to create database backup' });
     }
+    const query = 'INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)';
+    db.query(query, (err, result) => {
+      if (err) {
+        console.error('Error saving backup date to database:', err);
+      }
+    });
 
     // Send the file as a response
     res.download(backupFilePath, 'database-backup.sql', (err) => {
@@ -1628,6 +1603,82 @@ app.get('/backup-database', (req, res) => {
         }
       });
     });
+  });
+});
+
+  
+app.get('/dynamicsearchdata', (req, res) => {
+    const { val } = req.query;
+    const limit = 10;
+  
+    if (!val || val.trim() === '') {
+      return res.json([]);
+    }
+  
+    let sqlQuery = 'SELECT id, full_name, nic, phn FROM patient WHERE ';
+    let conditions = [];
+    let params = [];
+  
+    if (!isNaN(val)) {
+      conditions.push('(phn LIKE ? OR nic LIKE ?)');
+      params.push(`%${val}%`, `%${val}%`);
+    } else {
+      conditions.push('full_name LIKE ?');
+      params.push(`%${val}%`);
+    }
+  
+    sqlQuery += conditions.join(' AND ');
+    sqlQuery += ' LIMIT ?';
+    params.push(limit);
+  
+    db.query(sqlQuery, params, (err, results) => {
+      if (err) {
+        console.error('Error retrieving data from database:', err);
+        res.status(500).send('Database error');
+      } else {
+        res.json(results);
+      }
+    });
+  });
+
+  // Example API endpoint to fetch consultants
+app.get('/consultants', (req, res) => {
+  const query = 'SELECT * FROM staff WHERE role = "consultant"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.get('/staffs', (req, res) => {
+  // Use AND to exclude both 'superadmin' and 'data_entry'
+  const query = 'SELECT * FROM staff WHERE role != "superadmin" AND role != "data_entry"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.get('/last-backup', (req, res) => {
+  const query = 'SELECT backup_date FROM backup_history ORDER BY backup_date DESC LIMIT 1';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching last backup date:', err);
+      return res.status(500).json({ error: 'Failed to retrieve last backup date' });
+    }
+
+    if (results.length > 0) {
+      res.status(200).json({ lastBackupDate: results[0].backup_date });
+    } else {
+      res.status(200).json({ lastBackupDate: 'No backups available' });
+    }
   });
 });
 
