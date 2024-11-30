@@ -890,8 +890,6 @@ app.get('/stats', (req, res) => {
         });
       });
       
-      const PORT = 8082;
-      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
     app.get('/complaints-stats', (req, res) => {
         const sql = "SELECT complaints FROM treatment";
