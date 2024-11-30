@@ -1677,6 +1677,12 @@ app.get('/backup-database', (req, res) => {
       console.error(`stderr: ${stderr}`);
       return res.status(500).json({ error: 'Failed to create database backup' });
     }
+    const query = 'INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)';
+    db.query(query, (err, result) => {
+      if (err) {
+        console.error('Error saving backup date to database:', err);
+      }
+    });
 
     // Send the file as a response
     res.download(backupFilePath, 'database-backup.sql', (err) => {
@@ -1749,6 +1755,23 @@ app.get('/staffs', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     res.status(200).json(results);
+  });
+});
+
+app.get('/last-backup', (req, res) => {
+  const query = 'SELECT backup_date FROM backup_history ORDER BY backup_date DESC LIMIT 1';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching last backup date:', err);
+      return res.status(500).json({ error: 'Failed to retrieve last backup date' });
+    }
+
+    if (results.length > 0) {
+      res.status(200).json({ lastBackupDate: results[0].backup_date });
+    } else {
+      res.status(200).json({ lastBackupDate: 'No backups available' });
+    }
   });
 });
 
