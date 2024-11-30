@@ -797,9 +797,9 @@ app.get('/stats', (req, res) => {
     });
     
 
-    const OTP_EXPIRATION = 300000; // 5 minutes in milliseconds
+    const OTP_EXPIRATION = 300000; 
     const transporter = nodemailer.createTransport({
-      service: 'Gmail', // or your email provider
+      service: 'Gmail', 
       auth: {
         user: 'gyntngv@gmail.com', // replace with your email
         pass: 'dbqu luio zpho ktrb' // replace with your email password
@@ -888,7 +888,6 @@ app.get('/stats', (req, res) => {
                 return res.status(500).json({ error: 'Error retrieving complaints data' });
             }
     
-            // Complaint categories
             const complaintCategories = [
                 "Vaginal Bleeding",
                 "Dribbiling",
