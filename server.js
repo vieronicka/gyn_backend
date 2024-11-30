@@ -6,6 +6,7 @@ import session from "express-session";
 import bcrypt from "bcryptjs";
 import keys from './Config/keys.js';
 import jwt from 'jsonwebtoken';
+
 import nodemailer from 'nodemailer';
 import excelJS from 'exceljs';
 import pdf from 'pdfkit';
@@ -13,6 +14,8 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { exec } from 'child_process';
+import os from 'os';
 
 dotenv.config();
 const app = express();
@@ -39,7 +42,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gyntest"
+    database:"gynaecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -295,7 +298,7 @@ app.get('/admitdata', (req, res) => {
     const offset = (page - 1) * limit; // Calculate offset
 
     db.query(
-        'SELECT * FROM patient admit_status = "admitted" LIMIT ? OFFSET ?',
+        'SELECT * FROM patient WHERE admit_status = "admitted" LIMIT ? OFFSET ?',
         [limit, offset],
         (err, results) => {
             if (err) {
@@ -453,43 +456,53 @@ app.delete('/staff_information/:id', (req, res) => {
     });
   });
 
+app.get('/searchdata', (req, res) => {
+    const { val } = req.query; // Extract the search value from the request body
+    const limit = parseInt(req.query.limit) || 8; // Default limit to 8 if not provided
+    const page = parseInt(req.query.page) || 1;  // Default page to 1 if not provided
+    const offset = (page - 1) * limit; // Calculate offset for pagination
 
-  app.post('/searchdata', (req, res) => {
-    const { val } = req.body;
-    const limit = req.query.limit || 20; // Default limit to 20 if not specified in the query string
     let sqlQuery = 'SELECT * FROM patient WHERE ';
     let conditions = [];
     let params = [];
 
     // Check if the input is a number
     if (!isNaN(val)) {
-        // If val is a number, search by phone number or NIC
-        conditions.push('phn LIKE ? OR nic LIKE ?');
+        // Search by phone number or NIC if the input is numeric
+        conditions.push('(phn LIKE ? OR nic LIKE ?)');
         params.push(`%${val}%`, `%${val}%`);
-        console.log(params);
     } else {
-        // If val is a string, search by name
+        // Search by full name if the input is a string
         conditions.push('full_name LIKE ?');
         params.push(`%${val}%`);
-        console.log(params);
     }
 
+    // If there are search conditions, complete the query
     if (conditions.length > 0) {
-        sqlQuery += conditions.join(' AND ') + ' LIMIT ?';
-        params.push(parseInt(limit)); // Adding limit to params
-        // console.log('SQL Query:', sqlQuery);
-        // console.log('Params:', params);
+        sqlQuery += conditions.join(' AND '); // Combine conditions with AND
+        sqlQuery += ' LIMIT ? OFFSET ?'; // Add pagination
+
+        // Add limit and offset to the parameters array
+        params.push(limit, offset);
+
+        console.log('SQL Query:', sqlQuery);
+        console.log('Params:', params);
+
+        // Execute the query
         db.query(sqlQuery, params, (err, results) => {
             if (err) {
+                console.error('Error retrieving data from database:', err);
                 res.status(500).send('Error retrieving data from database');
             } else {
-                res.json(results);
+                res.json(results); // Send the query results as the response
             }
         });
     } else {
+        // If no valid input is provided, return a 400 Bad Request
         res.status(400).send('Invalid search input');
     }
 });
+
 
 app.listen(8081,() =>{
     console.log("Running...");
@@ -877,8 +890,6 @@ app.get('/stats', (req, res) => {
         });
       });
       
-      const PORT = 8082;
-      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
     app.get('/complaints-stats', (req, res) => {
         const sql = "SELECT complaints FROM treatment";
@@ -1133,6 +1144,7 @@ app.get('/visits/:visit_un', (req, res) => {
 app.get('/visitdetail/:visit_unique', (req, res) => {
 
     const visit_unique = req.params.visit_unique;
+    // console.log(visit_unique);
 
     const sql = `
         SELECT *
@@ -1268,9 +1280,6 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
 });
 
 
-
-
-// API to fetch data based on filters
 app.post('/export-data', (req, res) => {
     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
 
@@ -1280,23 +1289,99 @@ app.post('/export-data', (req, res) => {
     }
 
     let query = '';
+    let countQuery = '';
     const params = [];
 
+    // 1. Whole Data - fetch data from `patient_admission_treatment_investigation_view`
     if (filterType === 'all') {
+        query = `
+            SELECT * 
+            FROM patient_admission_treatment_investigation_view
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        countQuery = `
+            SELECT COUNT(*) AS count
+            FROM patient_admission_treatment_investigation_view
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+
+    // 2. Admission Data - fetch data from `patient_admission_medicalhx_view`
+    } else if (filterType === 'admission') {
+        query = `
+            SELECT * 
+            FROM patient_admission_medicalhx_view
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        countQuery = `
+            SELECT COUNT(*) AS count
+            FROM patient_admission_medicalhx_view
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+
+    // 3. Visit Data - fetch data from `treatment_investigation`
+    } else if (filterType === 'visit') {
+        query = `
+            SELECT * 
+            FROM treatment_investigation_view
+            WHERE treatment_date BETWEEN ? AND ?
+        `;
+        countQuery = `
+            SELECT COUNT(*) AS count
+            FROM treatment_investigation_view
+            WHERE treatment_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+
+    // 4. Single Data - fetch from `patient_admission_treatment_investigation_view` based on patient name or PHN
+    } else if (filterType === 'single') {
+        query = `
+            SELECT * 
+            FROM patient_admission_treatment_investigation_view
+            WHERE full_name LIKE ? OR patient_phone_no = ?
+        `;
+        countQuery = `
+            SELECT COUNT(*) AS count
+            FROM patient_admission_treatment_investigation_view
+            WHERE full_name LIKE ? OR patient_phone_no = ?
+        `;
+        params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
+    }
+
+    // First, get the count of records
+    db.query(countQuery, params, (err, countResults) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const recordCount = countResults[0].count;
+
+        // Then, fetch the actual data
+        db.query(query, params, (err, results) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // Send both the record count and the data in the response
+            res.status(200).json({ count: recordCount, data: results });
+        });
+    });
+});
+
+// API to fetch data based on filters
+app.post('/export-dataa', (req, res) => {
+    const {fromDate, toDate} = req.body;
+
+    // Validate inputs
+
+    let query = '';
+    const params = [];
+
+    
         query = `
             SELECT * 
             FROM Patient_Admission_Treatment_Investigation_View 
             WHERE admission_date BETWEEN ? AND ?
         `;
         params.push(fromDate, toDate);
-    } else if (filterType === 'single') {
-        query = `
-            SELECT * 
-            FROM Patient_Admission_Treatment_Investigation_View 
-            WHERE full_name LIKE ? OR patient_phone_no = ?
-        `;
-        params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
-    }
+    
 
     db.query(query, params, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -1336,7 +1421,6 @@ app.post('/export-excel', (req, res) => {
     workbook.xlsx.write(res).then(() => res.end());
 });
 
-// API to export data to PDF
 app.post('/export-pdf', (req, res) => {
     const { data } = req.body;
 
@@ -1347,25 +1431,38 @@ app.post('/export-pdf', (req, res) => {
     const doc = new pdf();
     const filePath = './PatientData.pdf';
 
-
-
     doc.pipe(fs.createWriteStream(filePath));
     doc.pipe(res);
 
-    doc.fontSize(16).text('Patient Data Report', { align: 'center' });
-    doc.moveDown();
+    doc.image('./download.png', 50, 30, { width: 50 });
+
+    doc.fontSize(20)
+       .font('Courier') 
+       .fillColor('blue')
+       .text('GYNECOLOGY DEPARTMENT\nJAFFNA TEACHING HOSPITAL', 100, 35, { align: 'center' });  // Adjust the X, Y values
+
+    doc.moveTo(50, 100)
+       .lineTo(550, 100)
+       .stroke();
+
+    doc.moveDown(2);
+
+    doc.fontSize(16).text('Patient Data Report', { align: 'center', underline: true});
+    doc.fillColor('black')
+    doc.moveDown(1);
 
     data.forEach((row, index) => {
-        doc.fontSize(12).text(`Record ${index + 1}:`);
+        doc.fontSize(12).font('Courier-Bold').text(`Record ${index + 1}:` , { underline: true });
         Object.keys(row).forEach((key) => {
-            doc.fontSize(10).text(`${key.replace(/_/g, ' ')}: ${row[key]}`);
+            doc.fontSize(10)
+            .font('Courier')
+            .moveDown(0.5)
+            .text(`${key.replace(/_/g, ' ')}: ${row[key]}`);
         });
-        doc.moveDown();
+        doc.moveDown(4);
     });
 
     doc.end();
-
-    // Cleanup temporary file after sending
     doc.on('finish', () => {
         fs.unlink(filePath, (err) => {
             if (err) console.error('Error deleting PDF file:', err);
@@ -1373,7 +1470,6 @@ app.post('/export-pdf', (req, res) => {
     });
 });
 
-// API route to fetch scan data
 app.get('/scan-data', (req, res) => {
     const query = `
       SELECT 
@@ -1393,11 +1489,6 @@ app.get('/scan-data', (req, res) => {
     });
   });
   
-
-
-
-
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post('/chat', async (req, res) => {
@@ -1416,3 +1507,212 @@ app.post('/chat', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });
+
+app.post('/export-dataa', (req, res) => {
+    const {fromDate, toDate} = req.body;
+    let query = '';
+    const params = [];
+
+    
+        query = `
+            SELECT * 
+            FROM Patient_Admission_Treatment_Investigation_View 
+            WHERE admission_date BETWEEN ? AND ?
+        `;
+        params.push(fromDate, toDate);
+
+    db.query(query, params, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(200).json({ data: results });
+    });
+});
+
+
+app.get('/dynamicsearchdata', (req, res) => {
+    const { val } = req.query;
+    const limit = 10;
+  
+    if (!val || val.trim() === '') {
+      return res.json([]);
+    }
+  
+    let sqlQuery = 'SELECT id, full_name, nic, phn FROM patient WHERE ';
+    let conditions = [];
+    let params = [];
+  
+    if (!isNaN(val)) {
+      conditions.push('(phn LIKE ? OR nic LIKE ?)');
+      params.push(`%${val}%`, `%${val}%`);
+    } else {
+      conditions.push('full_name LIKE ?');
+      params.push(`%${val}%`);
+    }
+  
+    sqlQuery += conditions.join(' AND ');
+    sqlQuery += ' LIMIT ?';
+    params.push(limit);
+  
+    db.query(sqlQuery, params, (err, results) => {
+      if (err) {
+        console.error('Error retrieving data from database:', err);
+        res.status(500).send('Database error');
+      } else {
+        res.json(results);
+      }
+    });
+  });
+
+  app.get('/staff/:id', async (req, res) => {
+    const staffId = req.params.id;
+    try {
+      const staffData = await Staff.findOne({ where: { id: staffId } });
+      if (staffData) {
+        res.json(staffData);
+      } else {
+        res.status(404).json({ message: 'Staff not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error });
+    }
+  });
+
+  app.put('/staff/:id', (req, res) => {
+    const { id } = req.params;
+    const { full_name, phone_no, role, email } = req.body;
+  
+    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ? WHERE id = ?';
+  
+    db.query(sql, [full_name, phone_no, role, email, id], (err, result) => {
+      if (err) {
+        console.error('Error executing SQL:', err);
+        return res.status(500).json({ error: 'Failed to update staff data' });
+      }
+  
+      res.status(200).json({ message: 'Staff data updated successfully', result });
+    });
+  });
+
+app.get('/backup-database', (req, res) => {
+  const dbHost = 'localhost';
+  const dbUser = 'root';
+  const dbPassword = '';
+  const dbName = 'gynaecology';
+
+  const backupFilePath = path.join('C:', 'Users', 'Gobikathish', 'Desktop', 'backups', `backup-${Date.now()}.sql`);
+  
+  // Create the mysqldump command
+  const command = `"C:\\xampp\\mysql\\bin\\mysqldump.exe" -h ${dbHost} -u ${dbUser}  ${dbName} > ${backupFilePath}`;
+
+  // Execute the command to dump the database
+  exec(command, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error executing mysqldump: ${error.message}`);
+      return res.status(500).json({ error: 'Failed to create database backup' });
+    }
+    if (stderr) {
+      console.error(`stderr: ${stderr}`);
+      return res.status(500).json({ error: 'Failed to create database backup' });
+    }
+    const query = 'INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)';
+    db.query(query, (err, result) => {
+      if (err) {
+        console.error('Error saving backup date to database:', err);
+      }
+    });
+
+    // Send the file as a response
+    res.download(backupFilePath, 'database-backup.sql', (err) => {
+      if (err) {
+        console.error('Error sending the file:', err);
+      }
+
+      // Clean up the backup file after download
+      fs.unlink(backupFilePath, (unlinkErr) => {
+        if (unlinkErr) {
+          console.error('Error deleting backup file:', unlinkErr);
+        }
+      });
+    });
+  });
+});
+
+  
+app.get('/dynamicsearchdata', (req, res) => {
+    const { val } = req.query;
+    const limit = 10;
+  
+    if (!val || val.trim() === '') {
+      return res.json([]);
+    }
+  
+    let sqlQuery = 'SELECT id, full_name, nic, phn FROM patient WHERE ';
+    let conditions = [];
+    let params = [];
+  
+    if (!isNaN(val)) {
+      conditions.push('(phn LIKE ? OR nic LIKE ?)');
+      params.push(`%${val}%`, `%${val}%`);
+    } else {
+      conditions.push('full_name LIKE ?');
+      params.push(`%${val}%`);
+    }
+  
+    sqlQuery += conditions.join(' AND ');
+    sqlQuery += ' LIMIT ?';
+    params.push(limit);
+  
+    db.query(sqlQuery, params, (err, results) => {
+      if (err) {
+        console.error('Error retrieving data from database:', err);
+        res.status(500).send('Database error');
+      } else {
+        res.json(results);
+      }
+    });
+  });
+
+  // Example API endpoint to fetch consultants
+app.get('/consultants', (req, res) => {
+  const query = 'SELECT * FROM staff WHERE role = "consultant"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.get('/staffs', (req, res) => {
+  // Use AND to exclude both 'superadmin' and 'data_entry'
+  const query = 'SELECT * FROM staff WHERE role != "superadmin" AND role != "data_entry"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.get('/last-backup', (req, res) => {
+  const query = 'SELECT backup_date FROM backup_history ORDER BY backup_date DESC LIMIT 1';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching last backup date:', err);
+      return res.status(500).json({ error: 'Failed to retrieve last backup date' });
+    }
+
+    if (results.length > 0) {
+      res.status(200).json({ lastBackupDate: results[0].backup_date });
+    } else {
+      res.status(200).json({ lastBackupDate: 'No backups available' });
+    }
+  });
+});
+
+
+
+  const PORT = 5000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
