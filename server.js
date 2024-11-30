@@ -42,7 +42,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gynaecology"
+    database:"gynecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -1160,6 +1160,7 @@ app.get('/visits/:visit_un', (req, res) => {
 app.get('/visitdetail/:visit_unique', (req, res) => {
 
     const visit_unique = req.params.visit_unique;
+    // console.log(visit_unique);
 
     const sql = `
         SELECT *
@@ -1621,11 +1622,6 @@ app.post('/chat', async (req, res) => {
 // API to fetch data based on filters
 app.post('/export-dataa', (req, res) => {
     const {fromDate, toDate} = req.body;
-
-    // Validate inputs
-
-app.post('/export-dataa', (req, res) => {
-    const {fromDate, toDate} = req.body;
     let query = '';
     const params = [];
 
@@ -1731,6 +1727,31 @@ app.get('/dynamicsearchdata', (req, res) => {
       }
     });
   });
+
+  // Example API endpoint to fetch consultants
+app.get('/consultants', (req, res) => {
+  const query = 'SELECT * FROM staff WHERE role = "consultant"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.get('/staffs', (req, res) => {
+  // Use AND to exclude both 'superadmin' and 'data_entry'
+  const query = 'SELECT * FROM staff WHERE role != "superadmin" AND role != "data_entry"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(200).json(results);
+  });
+});
+
 
   const PORT = 5000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
