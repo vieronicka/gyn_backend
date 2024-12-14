@@ -42,7 +42,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gynaecology"
+    database:"gyntest"
 })
 
 app.post('/reg', (req, res) => {
@@ -134,8 +134,8 @@ app.post('/reg', (req, res) => {
 });
 
 app.post('/newReg', (req, res) => {
-    // Insert data into the 'admission' table
     const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
+    
     const admissionValues = [
         req.body.date,
         req.body.phn,
@@ -151,17 +151,24 @@ app.post('/newReg', (req, res) => {
             return res.status(500).json({ error: "Error inserting data into 'admission' table", details: admissionErr });
         }
 
-        return res.status(200).json({admissionResult});
+        const updatePatientSql = "UPDATE patient SET admit_status = 'admitted' WHERE phn = ?";
+        db.query(updatePatientSql, [req.body.phn], (updateErr, updateResult) => {
+            if (updateErr) {
+                console.error("Error updating 'admit_status' in 'patient' table:", updateErr);
+                return res.status(500).json({ error: "Error updating 'admit_status' in 'patient' table", details: updateErr });
+            }
+
+            return res.status(200).json({ admissionResult, updateResult });
+        });
     });
 });
 
+
 app.get('/require_count/:id', (req, res) => {
-    // SQL query to get the phn and add_count for a specific id, ordered by add_count ascending, and limit to 1 result
     const sql = "SELECT phn, add_count FROM admission WHERE phn = ? ORDER BY add_count DESC LIMIT 1";
     const id = req.params.id;
     db.query(sql, [id], (err, result) => {
         if (err) {
-            // Log the error for debugging purposes
             console.error('Database query error:', err);
             res.status(500).send('Error retrieving data from database');
         } else {
@@ -861,7 +868,7 @@ app.get('/stats', (req, res) => {
     
     app.post('/contact_us', (req, res) => {
         const { email, username, complaints } = req.body;
-        console.log(req.body);
+        // console.log(req.body);
         if (!email || !username || !complaints) {
           return res.status(400).send({ error: 'All fields are required.' });
         }
