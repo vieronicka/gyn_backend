@@ -55,7 +55,7 @@ app.post('/reg', (req, res) => {
         req.body.nic,
         req.body.dob,
         req.body.status,
-        req.body.tp,
+        req.body.phone_no,
         req.body.bloodgr
         
     ];
@@ -84,7 +84,7 @@ app.post('/reg', (req, res) => {
             return res.status(500).json({ error: "Error inserting data into 'patient' table", details: patientErr });
         }
 
-        const medicalSql= "INSERT into medical_hx (`phn`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
+        const medicalSql= "INSERT into medical_hx (`phn`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
         const medicalValues = [
             req.body.phn,
             req.body.allergy,
@@ -96,8 +96,6 @@ app.post('/reg', (req, res) => {
             req.body.hx_cancer.join(', '),
             req.body.hx_cancer_other,
             req.body.diagnosis, 
-            req.body.height,
-            req.body.weight,
             req.body.menarche_age,
             req.body.menopausal_age,
             req.body.lmp,
@@ -112,14 +110,16 @@ app.post('/reg', (req, res) => {
             }
 
             // Insert data into the 'admission' table
-            const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
+            const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`,`height`,`weight`) VALUES (?)";
             const admissionValues = [
                 req.body.date,
                 req.body.phn,
                 req.body.bht,
                 req.body.ward,
                 req.body.consultant,
-                req.body.add_count
+                req.body.add_count,
+                req.body.height,
+                req.body.weight
             ];
 
             db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
@@ -134,15 +134,17 @@ app.post('/reg', (req, res) => {
 });
 
 app.post('/newReg', (req, res) => {
-    // Insert data into the 'admission' table
-    const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
+    const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`,`height`,`weight`) VALUES (?)";
+    
     const admissionValues = [
         req.body.date,
         req.body.phn,
         req.body.bht,
         req.body.ward,
         req.body.consultant,
-        req.body.add_count
+        req.body.add_count,
+        req.body.height,
+        req.body.weight
     ];
 
     db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
@@ -151,17 +153,24 @@ app.post('/newReg', (req, res) => {
             return res.status(500).json({ error: "Error inserting data into 'admission' table", details: admissionErr });
         }
 
-        return res.status(200).json({admissionResult});
+        const updatePatientSql = "UPDATE patient SET admit_status = 'admitted' WHERE phn = ?";
+        db.query(updatePatientSql, [req.body.phn], (updateErr, updateResult) => {
+            if (updateErr) {
+                console.error("Error updating 'admit_status' in 'patient' table:", updateErr);
+                return res.status(500).json({ error: "Error updating 'admit_status' in 'patient' table", details: updateErr });
+            }
+
+            return res.status(200).json({ admissionResult, updateResult });
+        });
     });
 });
 
+
 app.get('/require_count/:id', (req, res) => {
-    // SQL query to get the phn and add_count for a specific id, ordered by add_count ascending, and limit to 1 result
     const sql = "SELECT phn, add_count FROM admission WHERE phn = ? ORDER BY add_count DESC LIMIT 1";
     const id = req.params.id;
     db.query(sql, [id], (err, result) => {
         if (err) {
-            // Log the error for debugging purposes
             console.error('Database query error:', err);
             res.status(500).send('Error retrieving data from database');
         } else {
@@ -457,48 +466,38 @@ app.delete('/staff_information/:id', (req, res) => {
   });
 
 app.get('/searchdata', (req, res) => {
-    const { val } = req.query; // Extract the search value from the request body
-    const limit = parseInt(req.query.limit) || 8; // Default limit to 8 if not provided
-    const page = parseInt(req.query.page) || 1;  // Default page to 1 if not provided
-    const offset = (page - 1) * limit; // Calculate offset for pagination
+    const { val } = req.query; 
+    const limit = parseInt(req.query.limit) || 8; 
+    const page = parseInt(req.query.page) || 1;  
+    const offset = (page - 1) * limit; 
 
     let sqlQuery = 'SELECT * FROM patient WHERE ';
     let conditions = [];
     let params = [];
 
-    // Check if the input is a number
     if (!isNaN(val)) {
-        // Search by phone number or NIC if the input is numeric
         conditions.push('(phn LIKE ? OR nic LIKE ?)');
         params.push(`%${val}%`, `%${val}%`);
     } else {
-        // Search by full name if the input is a string
         conditions.push('full_name LIKE ?');
         params.push(`%${val}%`);
     }
 
-    // If there are search conditions, complete the query
     if (conditions.length > 0) {
-        sqlQuery += conditions.join(' AND '); // Combine conditions with AND
-        sqlQuery += ' LIMIT ? OFFSET ?'; // Add pagination
+        sqlQuery += conditions.join(' AND '); 
+        sqlQuery += ' LIMIT ? OFFSET ?'; 
 
-        // Add limit and offset to the parameters array
         params.push(limit, offset);
 
-        console.log('SQL Query:', sqlQuery);
-        console.log('Params:', params);
-
-        // Execute the query
         db.query(sqlQuery, params, (err, results) => {
             if (err) {
                 console.error('Error retrieving data from database:', err);
                 res.status(500).send('Error retrieving data from database');
             } else {
-                res.json(results); // Send the query results as the response
+                res.json(results); 
             }
         });
     } else {
-        // If no valid input is provided, return a 400 Bad Request
         res.status(400).send('Invalid search input');
     }
 });
@@ -512,7 +511,6 @@ app.post('/treat', (req, res) => {
     const treatSql = "INSERT INTO treatment (`date`,`visit_id`,`admission_id`,`visit_count`,`seen_by`,`complaints`,`abnormal_bleeding`,`complaint_other`,`exam_bpa`,`exam_bpb`,`exam_pulse`,`exam_abdominal`,`exam_gynaecology`,`manage_minor_eua`,`manage_minor_eb`,`manage_major`,`manage_medical`,`manage_surgical`) VALUES (?)";
     const treatValues = [
         req.body.date,
-        // req.body.phn,
         req.body.visit_id,
         req.body.admission_id,
         req.body.visit_no,
@@ -622,7 +620,7 @@ app.put('/patientUpdate/:id', (req, res) => {
         req.body.nic,
         req.body.dob,
         req.body.status,
-        req.body.tp,
+        req.body.phone_no,
         req.body.bloodgr,
         patientId
     ];
@@ -700,13 +698,15 @@ app.put('/admissionUpdate/:phn/:add_count', (req, res) => {
     const patientPhn = req.params.phn;
     const add_count = req.params.add_count;
 
-    const updateSql = "UPDATE admission SET  `date` = ?, `bht` = ?, `ward_no` = ?, `consultant` = ? WHERE `phn` = ? AND `add_count` = ?";
+    const updateSql = "UPDATE admission SET  `date` = ?, `bht` = ?, `ward_no` = ?, `consultant` = ? ,`height` = ?,`weight` = ? WHERE `phn` = ? AND `add_count` = ?";
 
     const updateValues = [
         req.body.date,
         req.body.bht,
         req.body.ward,
         req.body.consultant,
+        req.body.height,
+        req.body.weight,
         patientPhn,
         add_count
     ];
@@ -810,9 +810,9 @@ app.get('/stats', (req, res) => {
     });
     
 
-    const OTP_EXPIRATION = 300000; // 5 minutes in milliseconds
+    const OTP_EXPIRATION = 300000; 
     const transporter = nodemailer.createTransport({
-      service: 'Gmail', // or your email provider
+      service: 'Gmail', 
       auth: {
         user: 'gyntngv@gmail.com', // replace with your email
         pass: 'dbqu luio zpho ktrb' // replace with your email password
@@ -849,18 +849,48 @@ app.get('/stats', (req, res) => {
                     return res.status(500).json({ message: 'Error sending email' });
                 }
                 
-                // Log `info` only if there’s no error
                 res.status(200).json({ message: 'OTP sent successfully' });
             });
             
         });
         console.log(otp);
         console.log(email);
-        // console.log(error);
 
 
     });
     
+    app.post('/contact_us', (req, res) => {
+        const { email, username, complaints } = req.body;
+        // console.log(req.body);
+        if (!email || !username || !complaints) {
+          return res.status(400).send({ error: 'All fields are required.' });
+        }
+      
+        const transporter = nodemailer.createTransport({
+          service: 'Gmail',
+          auth: {
+            user: 'gyntngv@gmail.com', 
+            pass: 'ymee fufl synm cknk', 
+          },
+        });
+      
+        const mailOptions = {
+          from: email,
+          to: 'gyntngv@gmail.com', 
+          subject: `Complaint from ${username}`,
+          text: `Username: ${username}\n Email: ${email}\n Complaint:\n${complaints}`,
+        };
+      
+        transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).send({ error: 'Failed to send email.' });
+          }
+          res.send({ message: 'Complaint submitted successfully!' });
+        });
+      });
+      
+
     app.get('/complaints-stats', (req, res) => {
         const sql = "SELECT complaints FROM treatment";
     
@@ -869,7 +899,6 @@ app.get('/stats', (req, res) => {
                 return res.status(500).json({ error: 'Error retrieving complaints data' });
             }
     
-            // Complaint categories
             const complaintCategories = [
                 "Vaginal Bleeding",
                 "Dribbiling",
@@ -1114,6 +1143,7 @@ app.get('/visits/:visit_un', (req, res) => {
 app.get('/visitdetail/:visit_unique', (req, res) => {
 
     const visit_unique = req.params.visit_unique;
+    // console.log(visit_unique);
 
     const sql = `
         SELECT *
@@ -1248,6 +1278,7 @@ app.put('/visitUpdate/:visit_unique', (req, res) => {
     });
 });
 
+
 app.post('/export-data', (req, res) => {
     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
 
@@ -1333,42 +1364,6 @@ app.post('/export-data', (req, res) => {
     });
 });
 
-
-// // API to fetch data based on filters
-// app.post('/export-data', (req, res) => {
-//     const { filterType, fromDate, toDate, patientNameOrPhn } = req.body;
-
-//     // Validate inputs
-//     if (!filterType || (filterType === 'all' && (!fromDate || !toDate)) || (filterType === 'single' && !patientNameOrPhn)) {
-//         return res.status(400).json({ error: 'Invalid filter inputs' });
-//     }
-
-//     let query = '';
-//     const params = [];
-
-//     if (filterType === 'all') {
-//         query = `
-//             SELECT * 
-//             FROM Patient_Admission_Treatment_Investigation_View 
-//             WHERE admission_date BETWEEN ? AND ?
-//         `;
-//         params.push(fromDate, toDate);
-//     } else if (filterType === 'single') {
-//         query = `
-//             SELECT * 
-//             FROM Patient_Admission_Treatment_Investigation_View 
-//             WHERE full_name LIKE ? OR patient_phone_no = ?
-//         `;
-//         params.push(`%${patientNameOrPhn}%`, patientNameOrPhn);
-//     }
-
-//     db.query(query, params, (err, results) => {
-//         if (err) return res.status(500).json({ error: err.message });
-//         res.status(200).json({ data: results });
-//     });
-// });
-
-
 // API to fetch data based on filters
 app.post('/export-dataa', (req, res) => {
     const {fromDate, toDate} = req.body;
@@ -1437,7 +1432,9 @@ app.post('/export-pdf', (req, res) => {
 
     doc.pipe(fs.createWriteStream(filePath));
     doc.pipe(res);
+
     doc.image('./download.png', 50, 30, { width: 50 });
+
     doc.fontSize(20)
        .font('Courier') 
        .fillColor('blue')
@@ -1448,6 +1445,7 @@ app.post('/export-pdf', (req, res) => {
        .stroke();
 
     doc.moveDown(2);
+
     doc.fontSize(16).text('Patient Data Report', { align: 'center', underline: true});
     doc.fillColor('black')
     doc.moveDown(1);
@@ -1579,11 +1577,11 @@ app.get('/dynamicsearchdata', (req, res) => {
 
   app.put('/staff/:id', (req, res) => {
     const { id } = req.params;
-    const { full_name, phone_no, role, email, password, status } = req.body;
+    const { full_name, phone_no, role, email } = req.body;
   
-    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ?, password = ?, status = ? WHERE id = ?';
+    const sql = 'UPDATE staff SET full_name = ?, phone_no = ?, role = ?, email = ? WHERE id = ?';
   
-    db.query(sql, [full_name, phone_no, role, email, password, status, id], (err, result) => {
+    db.query(sql, [full_name, phone_no, role, email, id], (err, result) => {
       if (err) {
         console.error('Error executing SQL:', err);
         return res.status(500).json({ error: 'Failed to update staff data' });
@@ -1597,9 +1595,9 @@ app.get('/backup-database', (req, res) => {
   const dbHost = 'localhost';
   const dbUser = 'root';
   const dbPassword = '';
-  const dbName = 'gynecology';
+  const dbName = 'gynaecology';
 
-  const backupFilePath = path.join('C:', 'Users', 'Staff', 'Desktop', 'backups', `backup-${Date.now()}.sql`);
+  const backupFilePath = path.join('C:', 'Users', 'Gobikathish', 'Desktop', 'backups', `backup-${Date.now()}.sql`);
   
   // Create the mysqldump command
   const command = `"C:\\xampp\\mysql\\bin\\mysqldump.exe" -h ${dbHost} -u ${dbUser}  ${dbName} > ${backupFilePath}`;
@@ -1614,6 +1612,12 @@ app.get('/backup-database', (req, res) => {
       console.error(`stderr: ${stderr}`);
       return res.status(500).json({ error: 'Failed to create database backup' });
     }
+    const query = 'INSERT INTO backup_history (backup_date) VALUES (CURRENT_TIMESTAMP)';
+    db.query(query, (err, result) => {
+      if (err) {
+        console.error('Error saving backup date to database:', err);
+      }
+    });
 
     // Send the file as a response
     res.download(backupFilePath, 'database-backup.sql', (err) => {
@@ -1631,7 +1635,84 @@ app.get('/backup-database', (req, res) => {
   });
 });
 
+  
+app.get('/dynamicsearchdata', (req, res) => {
+    const { val } = req.query;
+    const limit = 10;
+  
+    if (!val || val.trim() === '') {
+      return res.json([]);
+    }
+  
+    let sqlQuery = 'SELECT id, full_name, nic, phn FROM patient WHERE ';
+    let conditions = [];
+    let params = [];
+  
+    if (!isNaN(val)) {
+      conditions.push('(phn LIKE ? OR nic LIKE ?)');
+      params.push(`%${val}%`, `%${val}%`);
+    } else {
+      conditions.push('full_name LIKE ?');
+      params.push(`%${val}%`);
+    }
+  
+    sqlQuery += conditions.join(' AND ');
+    sqlQuery += ' LIMIT ?';
+    params.push(limit);
+  
+    db.query(sqlQuery, params, (err, results) => {
+      if (err) {
+        console.error('Error retrieving data from database:', err);
+        res.status(500).send('Database error');
+      } else {
+        res.json(results);
+      }
+    });
+  });
+
+  // Example API endpoint to fetch consultants
+app.get('/consultants', (req, res) => {
+  const query = 'SELECT * FROM staff WHERE role = "consultant"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.get('/staffs', (req, res) => {
+  // Use AND to exclude both 'superadmin' and 'data_entry'
+  const query = 'SELECT * FROM staff WHERE role != "superadmin" AND role != "data_entry"';
+  
+  db.query(query, (err, results) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(200).json(results);
+  });
+});
+
+app.get('/last-backup', (req, res) => {
+  const query = 'SELECT backup_date FROM backup_history ORDER BY backup_date DESC LIMIT 1';
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching last backup date:', err);
+      return res.status(500).json({ error: 'Failed to retrieve last backup date' });
+    }
+
+    if (results.length > 0) {
+      res.status(200).json({ lastBackupDate: results[0].backup_date });
+    } else {
+      res.status(200).json({ lastBackupDate: 'No backups available' });
+    }
+  });
+});
 
 
-  const PORT = 5000;
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
