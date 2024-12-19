@@ -42,7 +42,7 @@ const db =mysql.createConnection({
     host:"localhost",
     user:"root",
     password:"",
-    database:"gyntest"
+    database:"gynaecology"
 })
 
 app.post('/reg', (req, res) => {
@@ -55,7 +55,7 @@ app.post('/reg', (req, res) => {
         req.body.nic,
         req.body.dob,
         req.body.status,
-        req.body.tp,
+        req.body.phone_no,
         req.body.bloodgr
         
     ];
@@ -84,7 +84,7 @@ app.post('/reg', (req, res) => {
             return res.status(500).json({ error: "Error inserting data into 'patient' table", details: patientErr });
         }
 
-        const medicalSql= "INSERT into medical_hx (`phn`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`height`,`weight`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
+        const medicalSql= "INSERT into medical_hx (`phn`,`allergy`,`past_med`,`past_med_other`,`past_surg`,`past_surg_other`,`hx_diseases`,`hx_cancer`,`hx_cancer_other`,`diagnosis`,`menarche_age`,`menopausal_age`,`lmp`,`menstrual_cycle`) VALUES (?)";
         const medicalValues = [
             req.body.phn,
             req.body.allergy,
@@ -96,8 +96,6 @@ app.post('/reg', (req, res) => {
             req.body.hx_cancer.join(', '),
             req.body.hx_cancer_other,
             req.body.diagnosis, 
-            req.body.height,
-            req.body.weight,
             req.body.menarche_age,
             req.body.menopausal_age,
             req.body.lmp,
@@ -112,14 +110,16 @@ app.post('/reg', (req, res) => {
             }
 
             // Insert data into the 'admission' table
-            const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
+            const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`,`height`,`weight`) VALUES (?)";
             const admissionValues = [
                 req.body.date,
                 req.body.phn,
                 req.body.bht,
                 req.body.ward,
                 req.body.consultant,
-                req.body.add_count
+                req.body.add_count,
+                req.body.height,
+                req.body.weight
             ];
 
             db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
@@ -134,7 +134,7 @@ app.post('/reg', (req, res) => {
 });
 
 app.post('/newReg', (req, res) => {
-    const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`) VALUES (?)";
+    const admissionSql = "INSERT INTO admission (`date`,`phn`,`bht`,`ward_no`,`consultant`,`add_count`,`height`,`weight`) VALUES (?)";
     
     const admissionValues = [
         req.body.date,
@@ -142,7 +142,9 @@ app.post('/newReg', (req, res) => {
         req.body.bht,
         req.body.ward,
         req.body.consultant,
-        req.body.add_count
+        req.body.add_count,
+        req.body.height,
+        req.body.weight
     ];
 
     db.query(admissionSql, [admissionValues], (admissionErr, admissionResult) => {
@@ -464,48 +466,38 @@ app.delete('/staff_information/:id', (req, res) => {
   });
 
 app.get('/searchdata', (req, res) => {
-    const { val } = req.query; // Extract the search value from the request body
-    const limit = parseInt(req.query.limit) || 8; // Default limit to 8 if not provided
-    const page = parseInt(req.query.page) || 1;  // Default page to 1 if not provided
-    const offset = (page - 1) * limit; // Calculate offset for pagination
+    const { val } = req.query; 
+    const limit = parseInt(req.query.limit) || 8; 
+    const page = parseInt(req.query.page) || 1;  
+    const offset = (page - 1) * limit; 
 
     let sqlQuery = 'SELECT * FROM patient WHERE ';
     let conditions = [];
     let params = [];
 
-    // Check if the input is a number
     if (!isNaN(val)) {
-        // Search by phone number or NIC if the input is numeric
         conditions.push('(phn LIKE ? OR nic LIKE ?)');
         params.push(`%${val}%`, `%${val}%`);
     } else {
-        // Search by full name if the input is a string
         conditions.push('full_name LIKE ?');
         params.push(`%${val}%`);
     }
 
-    // If there are search conditions, complete the query
     if (conditions.length > 0) {
-        sqlQuery += conditions.join(' AND '); // Combine conditions with AND
-        sqlQuery += ' LIMIT ? OFFSET ?'; // Add pagination
+        sqlQuery += conditions.join(' AND '); 
+        sqlQuery += ' LIMIT ? OFFSET ?'; 
 
-        // Add limit and offset to the parameters array
         params.push(limit, offset);
 
-        console.log('SQL Query:', sqlQuery);
-        console.log('Params:', params);
-
-        // Execute the query
         db.query(sqlQuery, params, (err, results) => {
             if (err) {
                 console.error('Error retrieving data from database:', err);
                 res.status(500).send('Error retrieving data from database');
             } else {
-                res.json(results); // Send the query results as the response
+                res.json(results); 
             }
         });
     } else {
-        // If no valid input is provided, return a 400 Bad Request
         res.status(400).send('Invalid search input');
     }
 });
@@ -519,7 +511,6 @@ app.post('/treat', (req, res) => {
     const treatSql = "INSERT INTO treatment (`date`,`visit_id`,`admission_id`,`visit_count`,`seen_by`,`complaints`,`abnormal_bleeding`,`complaint_other`,`exam_bpa`,`exam_bpb`,`exam_pulse`,`exam_abdominal`,`exam_gynaecology`,`manage_minor_eua`,`manage_minor_eb`,`manage_major`,`manage_medical`,`manage_surgical`) VALUES (?)";
     const treatValues = [
         req.body.date,
-        // req.body.phn,
         req.body.visit_id,
         req.body.admission_id,
         req.body.visit_no,
@@ -629,7 +620,7 @@ app.put('/patientUpdate/:id', (req, res) => {
         req.body.nic,
         req.body.dob,
         req.body.status,
-        req.body.tp,
+        req.body.phone_no,
         req.body.bloodgr,
         patientId
     ];
@@ -707,13 +698,15 @@ app.put('/admissionUpdate/:phn/:add_count', (req, res) => {
     const patientPhn = req.params.phn;
     const add_count = req.params.add_count;
 
-    const updateSql = "UPDATE admission SET  `date` = ?, `bht` = ?, `ward_no` = ?, `consultant` = ? WHERE `phn` = ? AND `add_count` = ?";
+    const updateSql = "UPDATE admission SET  `date` = ?, `bht` = ?, `ward_no` = ?, `consultant` = ? ,`height` = ?,`weight` = ? WHERE `phn` = ? AND `add_count` = ?";
 
     const updateValues = [
         req.body.date,
         req.body.bht,
         req.body.ward,
         req.body.consultant,
+        req.body.height,
+        req.body.weight,
         patientPhn,
         add_count
     ];
