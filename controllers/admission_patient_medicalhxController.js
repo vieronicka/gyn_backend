@@ -265,7 +265,7 @@ exports.register = async (req, res) => {
       nic: patientData.nic,
       dob: patientData.dob,
       marital_status: patientData.status,
-      phone_no: patientData.tp,
+      phone_no: patientData.phone_no,
       blood_gr: patientData.bloodgr
     });
 

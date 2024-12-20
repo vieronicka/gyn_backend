@@ -37,6 +37,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER(5),
       allowNull: false,
     },
+    height: {
+      type: DataTypes.FLOAT,
+      allowNull: false
+    },
+    weight: {
+      type: DataTypes.FLOAT,
+      allowNull: false
+    }
   }, {
     tableName: 'admission',
     timestamps: true,

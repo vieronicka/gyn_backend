@@ -50,6 +50,9 @@ exports.staffLogin = (req, res) => {
       if (!user) {
         return res.status(400).send('User not found');
       }
+      if(user.status ==="inactive"){
+        return res.status(403).send("Your account is inactive");
+      }
 
       bcrypt.compare(password, user.password, (err, isMatch) => {
         if (err) {
@@ -81,7 +84,7 @@ exports.staffLogin = (req, res) => {
   res.json({
     success: true,
     token: 'Bearer ' + token,
-    role: user.role,
+    // role: user.role,
     userId: user.id
   });
 });

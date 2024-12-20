@@ -40,7 +40,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     phone_no: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: true
     },
     admit_status: {
       type: DataTypes.ENUM('admitted', 'discharged'),

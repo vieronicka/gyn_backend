@@ -90,7 +90,7 @@ exports.exportData = async (req, res) => {
             recordCount = countResult;
             results = resultData;
         }
-        console.log('resultData', resultData)
+        // console.log('resultData', resultData)
         // Send the response with both count and data
         res.status(200).json({ count: recordCount, data: results });
     } catch (err) {
